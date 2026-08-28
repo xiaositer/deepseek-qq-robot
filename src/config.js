@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
-const GROUP_REPLY_MODES = new Set(['off', 'mention', 'all']);
+const GROUP_REPLY_MODES = new Set(['off', 'mention', 'natural', 'all']);
 
 function asPositiveInteger(value, fallback, name) {
   const parsed = Number(value ?? fallback);
@@ -16,6 +16,12 @@ function asNonNegativeInteger(value, fallback, name) {
   if (!Number.isInteger(parsed) || parsed < 0) {
     throw new Error(`${name} 必须是非负整数`);
   }
+  return parsed;
+}
+
+function asPercentage(value, fallback, name) {
+  const parsed = asNonNegativeInteger(value, fallback, name);
+  if (parsed > 100) throw new Error(`${name} 必须是 0-100 之间的整数`);
   return parsed;
 }
 
@@ -44,7 +50,7 @@ export async function loadConfig({ cwd = process.cwd(), env = process.env } = {}
   const rootDir = path.dirname(configPath);
   const groupReplyMode = String(file.chat?.groupReplyMode ?? 'off');
   if (!GROUP_REPLY_MODES.has(groupReplyMode)) {
-    throw new Error('chat.groupReplyMode 必须是 off、mention 或 all');
+    throw new Error('chat.groupReplyMode 必须是 off、mention、natural 或 all');
   }
 
   const wsUrl = String(file.onebot?.wsUrl ?? 'ws://127.0.0.1:3001').trim();
@@ -88,6 +94,9 @@ export async function loadConfig({ cwd = process.cwd(), env = process.env } = {}
     },
     chat: {
       groupReplyMode,
+      naturalActiveWindowMs: asPositiveInteger(file.chat?.naturalActiveWindowMs, 120_000, 'chat.naturalActiveWindowMs'),
+      naturalCooldownMs: asPositiveInteger(file.chat?.naturalCooldownMs, 20_000, 'chat.naturalCooldownMs'),
+      naturalReplyChancePercent: asPercentage(file.chat?.naturalReplyChancePercent, 12, 'chat.naturalReplyChancePercent'),
       inputDebounceMs: asPositiveInteger(file.chat?.inputDebounceMs, 1_800, 'chat.inputDebounceMs'),
       shortInputDebounceMs: asPositiveInteger(file.chat?.shortInputDebounceMs, 3_000, 'chat.shortInputDebounceMs'),
       maxInputWaitMs: asPositiveInteger(file.chat?.maxInputWaitMs, 8_000, 'chat.maxInputWaitMs'),

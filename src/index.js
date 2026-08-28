@@ -6,6 +6,7 @@ import { SafetyGuard } from './safety-guard.js';
 import { QQAdapter } from './qq-adapter.js';
 import { ChatController } from './chat-controller.js';
 import { MessageBatcher } from './message-batcher.js';
+import { GroupParticipationPolicy } from './group-participation-policy.js';
 
 async function main() {
   const config = await loadConfig();
@@ -23,12 +24,18 @@ async function main() {
     globalPerMinuteLimit: config.chat.globalPerMinuteLimit
   });
   const qq = new QQAdapter(config.onebot);
+  const participation = new GroupParticipationPolicy({
+    activeWindowMs: config.chat.naturalActiveWindowMs,
+    cooldownMs: config.chat.naturalCooldownMs,
+    ambientChancePercent: config.chat.naturalReplyChancePercent
+  });
   const controller = new ChatController({
     qq,
     deepseek,
     persona,
     store,
     safety,
+    participation,
     config: config.chat
   });
   const batcher = new MessageBatcher({
@@ -39,7 +46,10 @@ async function main() {
   });
 
   qq.on('message', (message) => {
-    if (controller.accepts(message)) batcher.add(message);
+    if (controller.accepts(message)) {
+      controller.noteIncoming(message);
+      batcher.add(message);
+    }
   });
 
   let stopping = false;

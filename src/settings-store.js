@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-const GROUP_MODES = new Set(['off', 'mention', 'all']);
+const GROUP_MODES = new Set(['off', 'mention', 'natural', 'all']);
 
 function object(value, name) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${name} 必须是对象`);
@@ -69,7 +69,7 @@ export function mergeAndValidateSettings(current, submitted, secrets = {}) {
   const chat = object(input.chat, 'chat');
   const consoleConfig = object(input.console ?? {}, 'console');
   const groupReplyMode = text(chat.groupReplyMode, 'chat.groupReplyMode', { min: 1, max: 20 });
-  if (!GROUP_MODES.has(groupReplyMode)) throw new Error('群聊模式必须是 off、mention 或 all');
+  if (!GROUP_MODES.has(groupReplyMode)) throw new Error('群聊模式必须是 off、mention、natural 或 all');
 
   const next = {
     ...current,
@@ -94,6 +94,9 @@ export function mergeAndValidateSettings(current, submitted, secrets = {}) {
     chat: {
       ...(current.chat ?? {}),
       groupReplyMode,
+      naturalActiveWindowMs: integer(chat.naturalActiveWindowMs ?? 120_000, 'chat.naturalActiveWindowMs', { min: 10_000, max: 1_800_000 }),
+      naturalCooldownMs: integer(chat.naturalCooldownMs ?? 20_000, 'chat.naturalCooldownMs', { min: 1_000, max: 600_000 }),
+      naturalReplyChancePercent: integer(chat.naturalReplyChancePercent ?? 12, 'chat.naturalReplyChancePercent', { min: 0, max: 100 }),
       inputDebounceMs: integer(chat.inputDebounceMs, 'chat.inputDebounceMs', { min: 100, max: 30_000 }),
       shortInputDebounceMs: integer(chat.shortInputDebounceMs, 'chat.shortInputDebounceMs', { min: 100, max: 30_000 }),
       maxInputWaitMs: integer(chat.maxInputWaitMs, 'chat.maxInputWaitMs', { min: 500, max: 120_000 }),

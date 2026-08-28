@@ -112,3 +112,47 @@ test('keeps silent without sending when the model chooses natural silence', asyn
   assert.equal(sent, false);
   assert.deepEqual(store.get('private:1').map((item) => item.role), ['user']);
 });
+
+test('observes passive natural group messages without calling the model', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'qq-chat-'));
+  const store = new RecentContextStore({ filePath: path.join(directory, 'context.json'), maxMessages: 10 });
+  await store.init();
+  let modelCalled = false;
+  const controller = new ChatController({
+    qq: { sendText: async () => {} },
+    deepseek: { chat: async () => { modelCalled = true; return { content: 'x' }; } },
+    persona: 'x', store,
+    safety: new SafetyGuard({ allow: { private: [], groups: ['1'] }, perMinuteLimit: 5, globalPerMinuteLimit: 5 }),
+    participation: { decide: () => ({ respond: false, reason: '旁听' }) },
+    config: { groupReplyMode: 'natural', maxReplyChars: 100, maxReplyParts: 3, sendGapMs: 1 },
+    logger: { info() {}, error() {} }
+  });
+  await controller.handle({ id: 'ambient', kind: 'group', targetId: '1', conversationId: 'group:1', senderId: '10', senderName: '甲', content: '天气不错' });
+  assert.equal(modelCalled, false);
+  assert.deepEqual(store.get('group:1').map((item) => item.content), ['甲：天气不错']);
+});
+
+test('cancels an unsent reply when a newer message arrives', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'qq-chat-'));
+  const store = new RecentContextStore({ filePath: path.join(directory, 'context.json'), maxMessages: 10 });
+  await store.init();
+  let resolveModel;
+  let modelStarted;
+  const started = new Promise((resolve) => { modelStarted = resolve; });
+  const sent = [];
+  const controller = new ChatController({
+    qq: { sendText: async (...args) => sent.push(args) },
+    deepseek: { chat: async () => { modelStarted(); return new Promise((resolve) => { resolveModel = resolve; }); } },
+    persona: 'x', store,
+    safety: new SafetyGuard({ allow: { private: ['1'], groups: [] }, perMinuteLimit: 5, globalPerMinuteLimit: 5 }),
+    config: { groupReplyMode: 'off', maxReplyChars: 100, maxReplyParts: 3, sendGapMs: 1 },
+    logger: { info() {}, error() {} }
+  });
+  const first = { id: 'old', kind: 'private', targetId: '1', conversationId: 'private:1', senderId: '1', content: '你现在' };
+  const pending = controller.handle(first);
+  await started;
+  controller.noteIncoming({ id: 'new', kind: 'private', targetId: '1', conversationId: 'private:1', senderId: '1', content: '在干什么' });
+  resolveModel({ content: '旧回复' });
+  await pending;
+  assert.deepEqual(sent, []);
+});

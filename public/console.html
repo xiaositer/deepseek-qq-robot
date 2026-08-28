@@ -91,7 +91,7 @@
             <article class="card form-card">
               <div class="card-title"><span class="service-icon violet">群</span><div><h3>群聊白名单</h3><p>一行一个群号</p></div></div>
               <label class="field"><textarea id="groupAllow" rows="8" placeholder="100950944"></textarea></label>
-              <label class="field"><span>群聊触发方式</span><select id="groupReplyMode"><option value="off">关闭群聊</option><option value="mention">仅 @ 时回复</option><option value="all">每条群消息都进入处理</option></select><small>“all” 可能高频回复，建议等自然插话策略完成后再使用。</small></label>
+              <label class="field"><span>群聊参与方式</span><select id="groupReplyMode"><option value="off">关闭群聊</option><option value="mention">仅 @ 时回复</option><option value="natural">自然参与（推荐）</option><option value="all">每条群消息都尝试回复</option></select><small>自然参与会旁听群聊，仅在被点名、连续对话或偶尔适合插话时回复。</small></label>
             </article>
           </div>
         </section>
@@ -112,6 +112,7 @@
         <section class="page" data-page="behavior">
           <div class="section-heading"><div><p class="eyebrow">CONVERSATION RHYTHM</p><h2>聊天行为与节奏</h2><p>调整消息合并、上下文长度、回复分条和安全限流。</p></div></div>
           <div class="form-grid">
+            <article class="card form-card span-2"><h3>自然群聊参与</h3><div class="field-row"><label class="field grow"><span>连续对话窗口（ms）</span><input id="naturalActiveWindow" type="number"><small>回复某人后，这段时间内允许他不 @ 继续对话。</small></label><label class="field grow"><span>普通插话冷却（ms）</span><input id="naturalCooldown" type="number"><small>不限制明确点名，只限制主动插话频率。</small></label><label class="field grow"><span>普通插话候选概率（%）</span><input id="naturalReplyChance" type="number" min="0" max="100"><small>模型还会二次判断，不合适时保持沉默。</small></label></div></article>
             <article class="card form-card"><h3>输入等待</h3><label class="field"><span>完整消息静默窗口（ms）</span><input id="inputDebounce" type="number"></label><label class="field"><span>短片段静默窗口（ms）</span><input id="shortInputDebounce" type="number"></label><label class="field"><span>最长等待（ms）</span><input id="maxInputWait" type="number"></label></article>
             <article class="card form-card"><h3>回复输出</h3><label class="field"><span>单条最大字符</span><input id="maxReplyChars" type="number"></label><label class="field"><span>最多分条</span><input id="maxReplyParts" type="number"></label><label class="field"><span>分条间隔（ms）</span><input id="sendGap" type="number"></label></article>
             <article class="card form-card"><h3>上下文</h3><label class="field"><span>每会话保留消息数</span><input id="contextMessages" type="number"></label><p class="hint-box">这是有限的近期上下文，不是长期记忆。数值越大，请求 token 越多。</p></article>

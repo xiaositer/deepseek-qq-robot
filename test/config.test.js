@@ -14,6 +14,7 @@ test('loads safe defaults and resolves project paths', async () => {
   const config = await loadConfig({ cwd: directory, env: { DEEPSEEK_API_KEY: 'test-key' } });
   assert.deepEqual(config.allow.private, ['123']);
   assert.equal(config.chat.groupReplyMode, 'off');
+  assert.equal(config.chat.naturalReplyChancePercent, 12);
   assert.equal(config.deepseek.maxRetries, 0);
   assert.equal(config.personaPath, path.join(directory, 'persona', 'fixed.md'));
 });

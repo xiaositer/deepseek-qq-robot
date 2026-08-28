@@ -55,6 +55,9 @@ function fillSettings(payload) {
   $('privateAllow').value = (config.allow.private ?? []).join('\n');
   $('groupAllow').value = (config.allow.groups ?? []).join('\n');
   $('groupReplyMode').value = config.chat.groupReplyMode ?? 'off';
+  $('naturalActiveWindow').value = config.chat.naturalActiveWindowMs ?? 120000;
+  $('naturalCooldown').value = config.chat.naturalCooldownMs ?? 20000;
+  $('naturalReplyChance').value = config.chat.naturalReplyChancePercent ?? 12;
   $('deepseekBaseUrl').value = config.deepseek.baseUrl ?? '';
   $('deepseekModel').value = config.deepseek.model ?? '';
   $('deepseekTimeout').value = config.deepseek.timeoutMs ?? 45000;
@@ -90,6 +93,9 @@ function collectSettings() {
   current.allow.private = idsFrom($('privateAllow').value);
   current.allow.groups = idsFrom($('groupAllow').value);
   current.chat.groupReplyMode = $('groupReplyMode').value;
+  current.chat.naturalActiveWindowMs = number('naturalActiveWindow');
+  current.chat.naturalCooldownMs = number('naturalCooldown');
+  current.chat.naturalReplyChancePercent = number('naturalReplyChance');
   current.deepseek.baseUrl = $('deepseekBaseUrl').value.trim();
   current.deepseek.model = $('deepseekModel').value.trim();
   current.deepseek.timeoutMs = number('deepseekTimeout');

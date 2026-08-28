@@ -48,3 +48,15 @@ test('detects a group mention of self', () => {
   assert.equal(message.conversationId, 'group:300');
   assert.equal(message.mentionedSelf, true);
 });
+
+test('captures the replied message id', () => {
+  const message = normalizeOneBotMessage({
+    post_type: 'message', message_type: 'group', message_id: 14,
+    group_id: 300, user_id: 100, self_id: 200,
+    message: [
+      { type: 'reply', data: { id: '88' } },
+      { type: 'text', data: { text: '然后呢' } }
+    ]
+  });
+  assert.equal(message.replyMessageId, '88');
+});

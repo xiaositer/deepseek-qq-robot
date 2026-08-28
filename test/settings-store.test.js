@@ -12,6 +12,7 @@ function baseConfig() {
     allow: { private: ['1516453033'], groups: ['100950944'] },
     chat: {
       groupReplyMode: 'mention', inputDebounceMs: 1800, shortInputDebounceMs: 3000, maxInputWaitMs: 8000,
+      naturalActiveWindowMs: 120000, naturalCooldownMs: 20000, naturalReplyChancePercent: 12,
       contextMessages: 24, maxReplyChars: 500, maxReplyParts: 3, sendGapMs: 700,
       perMinuteLimit: 8, globalPerMinuteLimit: 30
     },

@@ -18,7 +18,10 @@
     "groups": []
   },
   "chat": {
-    "groupReplyMode": "off",
+    "groupReplyMode": "natural",
+    "naturalActiveWindowMs": 120000,
+    "naturalCooldownMs": 20000,
+    "naturalReplyChancePercent": 12,
     "inputDebounceMs": 1800,
     "shortInputDebounceMs": 3000,
     "maxInputWaitMs": 8000,

@@ -34,6 +34,9 @@ export function normalizeOneBotMessage(event) {
   const mentionedSelf = Array.isArray(event.message) && selfId
     ? event.message.some((segment) => segment?.type === 'at' && String(segment?.data?.qq ?? '') === selfId)
     : false;
+  const replySegment = Array.isArray(event.message)
+    ? event.message.find((segment) => segment?.type === 'reply')
+    : null;
   return {
     id: String(event.message_id ?? randomUUID()),
     kind,
@@ -44,6 +47,7 @@ export function normalizeOneBotMessage(event) {
     selfId,
     content,
     mentionedSelf,
+    replyMessageId: replySegment?.data?.id === undefined ? null : String(replySegment.data.id),
     timestamp: Number(event.time ? event.time * 1000 : Date.now()),
     raw: event
   };
