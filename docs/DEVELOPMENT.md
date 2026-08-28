@@ -22,11 +22,12 @@
 2. 接收允许会话中的 QQ 文本消息；
 3. 加载固定角色卡 `persona/fixed.md`；
 4. 保存每个会话必要的近期对话，用于多轮聊天；
-5. 直接请求 DeepSeek Chat Completions API；
-6. 将 DeepSeek 的文本回复发送到原 QQ 会话；
-7. 不同私聊或群聊的上下文互相隔离；
-8. 提供白名单、超时、有限重试和基础发送限流；
-9. API Key 只从环境变量读取，不写入代码、配置文件或日志。
+5. 在短暂静默窗口内合并用户连续发送的消息片段；
+6. 直接请求 DeepSeek Chat Completions API；
+7. 将 DeepSeek 的文本回复发送到原 QQ 会话；
+8. 不同私聊或群聊的上下文互相隔离；
+9. 提供白名单、超时、有限重试和基础发送限流；
+10. API Key 只从环境变量或本地忽略配置读取，不写入代码或日志。
 
 近期上下文只是多轮聊天的必要组成，不属于长期记忆功能。第一版只保留有限条最近消息，超出限制后直接裁剪。
 
@@ -187,6 +188,7 @@ qq-persona-companion/
 ├── src/
 │   ├── qq-adapter.js
 │   ├── chat-controller.js
+│   ├── message-batcher.js
 │   ├── deepseek-client.js
 │   ├── fixed-persona-loader.js
 │   ├── recent-context-store.js
@@ -209,6 +211,7 @@ qq-persona-companion/
 ```text
 收到 OneBot 文本消息
   → 规范化并检查白名单
+  → 等待静默窗口并合并连续消息片段
   → 进入该 conversationId 的串行队列
   → 保存 user 消息
   → 读取固定角色卡和该会话近期上下文

@@ -4,6 +4,8 @@
 
 当前版本只做文本聊天，不使用 DSH，也不包含主动聊天、长期记忆、人格切换、图片、语音、表情包、搜索或通用 Agent 工具。
 
+连续短消息会先进入输入缓冲：普通消息在短暂静默后处理，短且没有结束标点的片段会多等一会儿，最多等待 8 秒。比如连续发送“你现在”和“在干什么”，会合并成同一轮，只请求一次 DeepSeek。
+
 ## 环境要求
 
 - Windows；
@@ -65,6 +67,7 @@ npm run check
 - `src/qq-adapter.js`：OneBot WebSocket 收发；
 - `src/deepseek-client.js`：DeepSeek 官方 API 直连；
 - `src/chat-controller.js`：消息队列和聊天主流程；
+- `src/message-batcher.js`：连续短消息合并和最长等待控制；
 - `src/recent-context-store.js`：有限近期上下文；
 - `docs/DEVELOPMENT.md`：范围、架构和验收标准。
 

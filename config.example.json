@@ -19,6 +19,9 @@
   },
   "chat": {
     "groupReplyMode": "off",
+    "inputDebounceMs": 1800,
+    "shortInputDebounceMs": 3000,
+    "maxInputWaitMs": 8000,
     "contextMessages": 24,
     "maxReplyChars": 500,
     "maxReplyParts": 3,

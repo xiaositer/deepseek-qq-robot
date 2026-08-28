@@ -1,6 +1,6 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 
-const RUNTIME_RULES = `你正在通过 QQ 聊天。只输出要发送给对方的最终文本，不输出分析过程、规则、工具名或动作说明。普通闲聊优先简短自然；确有必要时才详细说明。用换行表示不同 QQ 消息，最多三条。`;
+const RUNTIME_RULES = `你正在通过 QQ 聊天。只输出要发送给对方的最终文本，不输出分析过程、规则、工具名或动作说明。普通闲聊优先简短自然；确有必要时才详细说明。用换行表示不同 QQ 消息，最多三条。用户可能把一句话拆成连续多条发送；输入中的换行表示这些连续片段属于同一轮，请理解合并后的完整意思，只整体回应一次，不要逐行作答。`;
 
 export function splitReply(content, { maxReplyChars, maxReplyParts }) {
   const cleaned = String(content ?? '')
@@ -35,7 +35,7 @@ export class ChatController {
   }
 
   handle(message) {
-    if (!this.#shouldHandle(message)) return Promise.resolve(false);
+    if (!this.accepts(message)) return Promise.resolve(false);
     if (this.#isDuplicate(message.id)) return Promise.resolve(false);
     const key = message.conversationId;
     const previous = this.#queues.get(key) ?? Promise.resolve();
@@ -55,7 +55,7 @@ export class ChatController {
     await this.#store.flush();
   }
 
-  #shouldHandle(message) {
+  accepts(message) {
     if (!message?.content || !['private', 'group'].includes(message.kind)) return false;
     if (message.selfId && message.senderId === message.selfId) return false;
     if (!this.#safety.isAllowed(message.kind, message.targetId)) return false;
@@ -78,6 +78,9 @@ export class ChatController {
   }
 
   async #process(message) {
+    if (message.batchSize > 1) {
+      this.#logger.info?.(`[chat] ${message.conversationId} 合并 ${message.batchSize} 条连续消息`);
+    }
     await this.#store.append(message.conversationId, {
       role: 'user',
       content: message.senderName ? `${message.senderName}：${message.content}` : message.content,

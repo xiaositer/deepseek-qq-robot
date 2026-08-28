@@ -5,6 +5,7 @@ import { DeepSeekClient } from './deepseek-client.js';
 import { SafetyGuard } from './safety-guard.js';
 import { QQAdapter } from './qq-adapter.js';
 import { ChatController } from './chat-controller.js';
+import { MessageBatcher } from './message-batcher.js';
 
 async function main() {
   const config = await loadConfig();
@@ -30,9 +31,15 @@ async function main() {
     safety,
     config: config.chat
   });
+  const batcher = new MessageBatcher({
+    onBatch: (message) => controller.handle(message),
+    quietMs: config.chat.inputDebounceMs,
+    shortQuietMs: config.chat.shortInputDebounceMs,
+    maxWaitMs: config.chat.maxInputWaitMs
+  });
 
   qq.on('message', (message) => {
-    controller.handle(message).catch((error) => console.error('[chat] 未处理错误', error));
+    if (controller.accepts(message)) batcher.add(message);
   });
 
   let stopping = false;
@@ -41,6 +48,7 @@ async function main() {
     stopping = true;
     console.info(`[app] 收到 ${signal}，正在退出`);
     await qq.close();
+    await batcher.close({ flush: false });
     await controller.flush();
     process.exit(0);
   };

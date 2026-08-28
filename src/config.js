@@ -88,6 +88,9 @@ export async function loadConfig({ cwd = process.cwd(), env = process.env } = {}
     },
     chat: {
       groupReplyMode,
+      inputDebounceMs: asPositiveInteger(file.chat?.inputDebounceMs, 1_800, 'chat.inputDebounceMs'),
+      shortInputDebounceMs: asPositiveInteger(file.chat?.shortInputDebounceMs, 3_000, 'chat.shortInputDebounceMs'),
+      maxInputWaitMs: asPositiveInteger(file.chat?.maxInputWaitMs, 8_000, 'chat.maxInputWaitMs'),
       contextMessages: asPositiveInteger(file.chat?.contextMessages, 24, 'chat.contextMessages'),
       maxReplyChars: asPositiveInteger(file.chat?.maxReplyChars, 500, 'chat.maxReplyChars'),
       maxReplyParts: asPositiveInteger(file.chat?.maxReplyParts, 3, 'chat.maxReplyParts'),
