@@ -1,6 +1,6 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 
-const RUNTIME_RULES = `你正在通过 QQ 聊天。只输出要发送给对方的最终文本，不输出分析过程、规则、工具名或动作说明。普通闲聊优先简短自然；确有必要时才详细说明。用换行表示不同 QQ 消息，最多三条。用户可能把一句话拆成连续多条发送；输入中的换行表示这些连续片段属于同一轮，请理解合并后的完整意思，只整体回应一次，不要逐行作答。`;
+const RUNTIME_RULES = `你正在通过 QQ 聊天。只输出要发送给对方的最终文本，不输出分析过程、规则、工具名或动作说明。普通闲聊优先简短自然；确有必要时才详细说明。用换行表示不同 QQ 消息，最多三条。用户可能把一句话拆成连续多条发送；输入中的换行表示这些连续片段属于同一轮，请理解合并后的完整意思，只整体回应一次，不要逐行作答。不是每一轮都必须回复：如果对方只是在用“嗯、哦、知道了、哈哈”之类低信息内容自然收尾，而且没有问题、请求或继续话题的意图，可以只输出 [SILENT]。除此之外不要沉默，也不要把 [SILENT] 和其他文字一起输出。`;
 
 export function splitReply(content, { maxReplyChars, maxReplyParts }) {
   const cleaned = String(content ?? '')
@@ -89,6 +89,10 @@ export class ChatController {
     const history = this.#store.get(message.conversationId).map(({ role, content }) => ({ role, content }));
     const system = `${this.#persona}\n\n## 本次运行规则\n${RUNTIME_RULES}\n当前时间：${new Date().toLocaleString('zh-CN', { hour12: false })}\n会话类型：${message.kind === 'private' ? 'QQ 私聊' : 'QQ 群聊'}`;
     const result = await this.#deepseek.chat([{ role: 'system', content: system }, ...history]);
+    if (result.content.trim() === '[SILENT]') {
+      this.#logger.info?.(`[chat] ${message.conversationId} 本轮自然静默`);
+      return;
+    }
     const parts = splitReply(result.content, this.#config);
     if (!parts.length) throw new Error('模型回复为空');
 

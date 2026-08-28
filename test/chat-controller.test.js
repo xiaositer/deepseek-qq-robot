@@ -93,3 +93,22 @@ test('records only successfully sent parts when a later send fails', async () =>
   await controller.handle({ id: 'partial', kind: 'private', targetId: '1', conversationId: 'private:1', senderId: '1', content: 'hi' });
   assert.deepEqual(store.get('private:1').map((item) => item.content), ['hi', '第一条']);
 });
+
+test('keeps silent without sending when the model chooses natural silence', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'qq-chat-'));
+  const store = new RecentContextStore({ filePath: path.join(directory, 'context.json'), maxMessages: 10 });
+  await store.init();
+  let sent = false;
+  const controller = new ChatController({
+    qq: { sendText: async () => { sent = true; } },
+    deepseek: { chat: async () => ({ content: '[SILENT]' }) },
+    persona: 'x',
+    store,
+    safety: new SafetyGuard({ allow: { private: ['1'], groups: [] }, perMinuteLimit: 5, globalPerMinuteLimit: 5 }),
+    config: { groupReplyMode: 'off', maxReplyChars: 100, maxReplyParts: 3, sendGapMs: 1 },
+    logger: { info() {}, error() {} }
+  });
+  await controller.handle({ id: 'silent', kind: 'private', targetId: '1', conversationId: 'private:1', senderId: '1', content: '嗯' });
+  assert.equal(sent, false);
+  assert.deepEqual(store.get('private:1').map((item) => item.role), ['user']);
+});
