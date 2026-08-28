@@ -21,11 +21,11 @@ export class DeepSeekClient {
     this.#fetch = fetchImpl;
   }
 
-  async chat(messages) {
+  async chat(messages, options = {}) {
     let lastError;
     for (let attempt = 0; attempt <= this.#config.maxRetries; attempt += 1) {
       try {
-        return await this.#request(messages);
+        return await this.#request(messages, options);
       } catch (error) {
         lastError = error;
         if (!error?.retryable || attempt === this.#config.maxRetries) throw error;
@@ -36,11 +36,21 @@ export class DeepSeekClient {
     throw lastError;
   }
 
-  async #request(messages) {
+  async #request(messages, options) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.#config.timeoutMs);
     timeout.unref?.();
     let response;
+    const requestBody = {
+      model: this.#config.model,
+      messages,
+      thinking: { type: 'disabled' },
+      max_tokens: this.#config.maxTokens,
+      stream: false
+    };
+    if (options.responseFormat === 'json_object') {
+      requestBody.response_format = { type: 'json_object' };
+    }
     try {
       response = await this.#fetch(`${this.#config.baseUrl}/chat/completions`, {
         method: 'POST',
@@ -48,13 +58,7 @@ export class DeepSeekClient {
           authorization: `Bearer ${this.#config.apiKey}`,
           'content-type': 'application/json'
         },
-        body: JSON.stringify({
-          model: this.#config.model,
-          messages,
-          thinking: { type: 'disabled' },
-          max_tokens: this.#config.maxTokens,
-          stream: false
-        }),
+        body: JSON.stringify(requestBody),
         signal: controller.signal
       });
     } catch (error) {
@@ -85,7 +89,9 @@ export class DeepSeekClient {
 
     const content = body?.choices?.[0]?.message?.content;
     if (typeof content !== 'string' || !content.trim()) {
-      throw new DeepSeekError('DeepSeek 返回了空回复', { retryable: false });
+      throw new DeepSeekError('DeepSeek 返回了空回复', {
+        retryable: options.responseFormat === 'json_object'
+      });
     }
 
     return {

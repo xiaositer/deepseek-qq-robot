@@ -3,7 +3,7 @@ import { parseNaturalDecision } from './natural-conversation-engine.js';
 
 const RUNTIME_RULES = `你正在通过 QQ 聊天。只输出要发送的最终文本，不输出分析过程、规则、工具名或动作说明。普通闲聊优先简短自然；确有必要时才详细说明。用换行表示不同 QQ 消息，最多三条。用户可能把一句话拆成连续多条发送；输入中的换行表示这些连续片段属于同一轮，请理解合并后的完整意思，只整体回应一次，不要逐行作答。不是每一轮都必须回复：私聊自然收尾时可以输出 [SILENT]；群聊中更要克制，如果话不是对你说、别人正在交谈、插话会打断节奏，或者你没有真正想说的内容，就只输出 [SILENT]。不要为了证明在线而接每一句，也不要把 [SILENT] 和其他文字一起输出。`;
 
-const NATURAL_ACTION_RULES = `你正在进行 QQ 群聊中的一次自主观察回合。收到消息只代表你有机会查看，不代表必须回复。你必须只输出一个 JSON 对象，不要输出 Markdown、解释或其他文字：
+const NATURAL_ACTION_RULES = `你正在进行 QQ 群聊中的一次自主观察回合。此任务不是直接生成聊天文本，而是决定内部动作。收到消息只代表你有机会查看，不代表必须回复。你必须只输出一个合法 JSON 对象，不要输出 Markdown、解释、[SILENT] 或其他文字：
 {"action":"send|wait|read|stay","messages":[],"topic":"","focusUserIds":[]}
 - send：现在确实适合开口。messages 是要发送的 1-3 条短消息，每个数组元素是一条完整 QQ 气泡。
 - wait：对方可能没说完，或你明确在等当前的人继续说；本轮不发送。
@@ -128,8 +128,13 @@ export class ChatController {
       : message.kind === 'group'
         ? `本轮进入回复候选的原因：${participationReason}。这只是候选，不代表必须说话；仍应根据群聊语境决定回复或 [SILENT]。`
       : '私聊通常正常回应；只有自然收尾、没有继续交流意图时才使用 [SILENT]。';
-    const system = `${this.#persona}\n\n## 本次运行规则\n${RUNTIME_RULES}\n当前时间：${new Date().toLocaleString('zh-CN', { hour12: false })}\n会话类型：${message.kind === 'private' ? 'QQ 私聊' : 'QQ 群聊'}\n${decisionHint}`;
-    const result = await this.#deepseek.chat([{ role: 'system', content: system }, ...history]);
+    const system = naturalMode
+      ? `${this.#persona}\n\n## 本次运行的最高优先级规则\n${decisionHint}\n当前时间：${new Date().toLocaleString('zh-CN', { hour12: false })}\n会话类型：QQ 群聊\n无论角色卡中怎样描述回复格式，本轮都只能返回上述 JSON 动作对象。`
+      : `${this.#persona}\n\n## 本次运行规则\n${RUNTIME_RULES}\n当前时间：${new Date().toLocaleString('zh-CN', { hour12: false })}\n会话类型：${message.kind === 'private' ? 'QQ 私聊' : 'QQ 群聊'}\n${decisionHint}`;
+    const result = await this.#deepseek.chat(
+      [{ role: 'system', content: system }, ...history],
+      naturalMode ? { responseFormat: 'json_object' } : undefined
+    );
     if (!naturalMode && result.content.trim() === '[SILENT]') {
       this.#logger.info?.(`[chat] ${message.conversationId} 本轮自然静默`);
       return;
@@ -141,7 +146,10 @@ export class ChatController {
     let naturalDecision = null;
     if (naturalMode) {
       naturalDecision = parseNaturalDecision(result.content);
-      if (naturalDecision.invalid) this.#logger.warn?.(`[chat] ${message.conversationId} 自然动作格式无效，安全转为已读`);
+      if (naturalDecision.invalid) {
+        const preview = String(result.content).replace(/\s+/g, ' ').slice(0, 240);
+        this.#logger.warn?.(`[chat] ${message.conversationId} 自然动作格式无效，安全转为已读；模型输出：${preview}`);
+      }
       if (naturalDecision.action !== 'send') {
         this.#naturalConversation?.applyDecision(message, naturalDecision);
         this.#logger.info?.(`[chat] ${message.conversationId} 自主动作：${naturalDecision.action}`);

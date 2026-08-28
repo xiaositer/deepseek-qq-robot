@@ -143,9 +143,15 @@ test('executes a structured natural send action', async () => {
     snapshot: () => ({ phase: 'sleeping' }),
     applyDecision: (...args) => applied.push(args)
   };
+  let modelOptions;
+  let modelMessages;
   const controller = new ChatController({
     qq: { sendText: async (...args) => { sent.push(args); return { message_id: sent.length }; } },
-    deepseek: { chat: async () => ({ content: '{"action":"send","messages":["在的","咋了"],"topic":"测试"}' }) },
+    deepseek: { chat: async (messages, options) => {
+      modelMessages = messages;
+      modelOptions = options;
+      return { content: '{"action":"send","messages":["在的","咋了"],"topic":"测试"}' };
+    } },
     persona: 'x', store,
     safety: new SafetyGuard({ allow: { private: [], groups: ['1'] }, perMinuteLimit: 5, globalPerMinuteLimit: 5 }),
     naturalConversation,
@@ -156,6 +162,9 @@ test('executes a structured natural send action', async () => {
   assert.deepEqual(sent, [['group', '1', '在的'], ['group', '1', '咋了']]);
   assert.equal(applied.length, 1);
   assert.equal(applied[0][1].action, 'send');
+  assert.deepEqual(modelOptions, { responseFormat: 'json_object' });
+  assert.match(modelMessages[0].content, /只能返回上述 JSON 动作对象/);
+  assert.doesNotMatch(modelMessages[0].content, /只输出要发送的最终文本/);
 });
 
 test('cancels an unsent reply when a newer message arrives', async () => {

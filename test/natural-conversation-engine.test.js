@@ -15,6 +15,8 @@ test('parses natural action JSON and fails closed', () => {
   });
   assert.equal(parseNaturalDecision('不是 JSON').action, 'read');
   assert.equal(parseNaturalDecision('{"action":"send","messages":[]}').action, 'read');
+  assert.deepEqual(parseNaturalDecision('{"action":"send","message":"第一句\\n第二句"}').messages, ['第一句', '第二句']);
+  assert.equal(parseNaturalDecision('{"action":"unknown"}').invalid, true);
 });
 
 test('collects ordinary messages into an inbox before semantic review', () => {

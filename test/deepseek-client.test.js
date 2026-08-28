@@ -27,7 +27,23 @@ test('calls DeepSeek chat completions without thinking mode', async () => {
   assert.equal(request.url, 'https://api.deepseek.com/chat/completions');
   assert.equal(request.options.headers.authorization, 'Bearer test-key');
   assert.deepEqual(request.body.thinking, { type: 'disabled' });
+  assert.equal(request.body.response_format, undefined);
   assert.equal(result.content, '你好');
+});
+
+test('enables DeepSeek JSON output for structured decisions', async () => {
+  let requestBody;
+  const client = new DeepSeekClient(config, {
+    fetchImpl: async (_url, options) => {
+      requestBody = JSON.parse(options.body);
+      return new Response(JSON.stringify({
+        choices: [{ message: { content: '{"action":"read"}' } }]
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+  });
+  const result = await client.chat([{ role: 'system', content: '输出 JSON' }], { responseFormat: 'json_object' });
+  assert.deepEqual(requestBody.response_format, { type: 'json_object' });
+  assert.equal(result.content, '{"action":"read"}');
 });
 
 test('does not retry an authentication error', async () => {

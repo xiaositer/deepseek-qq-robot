@@ -9,10 +9,17 @@ export function parseNaturalDecision(content) {
   if (start < 0 || end <= start) return { action: 'read', messages: [], invalid: true };
   try {
     const value = JSON.parse(raw.slice(start, end + 1));
-    const action = ACTIONS.has(String(value.action).toLowerCase()) ? String(value.action).toLowerCase() : 'read';
+    const requestedAction = String(value.action ?? '').toLowerCase();
+    const action = ACTIONS.has(requestedAction) ? requestedAction : 'read';
     const messages = Array.isArray(value.messages)
       ? value.messages.map((item) => String(item).trim()).filter(Boolean).slice(0, 4)
-      : [];
+      : [value.messages, value.message, value.reply, value.content]
+        .find((item) => typeof item === 'string' && item.trim())
+        ?.split(/\r?\n+/)
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .slice(0, 4) ?? [];
+    const invalid = !ACTIONS.has(requestedAction) || (action === 'send' && !messages.length);
     return {
       action: action === 'send' && !messages.length ? 'read' : action,
       messages,
@@ -20,7 +27,7 @@ export function parseNaturalDecision(content) {
       focusUserIds: Array.isArray(value.focusUserIds)
         ? [...new Set(value.focusUserIds.map(String).filter(Boolean))].slice(0, 10)
         : [],
-      invalid: false
+      invalid
     };
   } catch {
     return { action: 'read', messages: [], invalid: true };
