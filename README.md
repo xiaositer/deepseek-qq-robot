@@ -29,7 +29,7 @@ Copy-Item -LiteralPath config.example.json -Destination config.json
 npm start
 ```
 
-启动日志会显示一个带本地令牌的控制台地址，格式为 `http://127.0.0.1:3100/#token=...`。打开后可以管理：
+启动日志会显示本地控制台地址 `http://127.0.0.1:3100/`。控制台只监听 `127.0.0.1`，无需登录令牌。打开后可以管理：
 
 - 聊天服务启动、停止和重启；
 - SnowLuma WebSocket 地址与 Token；
@@ -40,7 +40,7 @@ npm start
 - 项目内路径、控制台端口和自动启动；
 - 最近 500 条聊天服务运行日志。
 
-已有 API Key 和 OneBot Token 不会发送到浏览器，页面只显示是否已经配置。密钥输入框留空表示保留原值。`config.json` 和控制台令牌均被 `.gitignore` 排除。
+已有 API Key 和 OneBot Token 不会发送到浏览器，页面只显示是否已经配置。密钥输入框留空表示保留原值。`config.json` 被 `.gitignore` 排除。
 
 ## 群聊模式
 

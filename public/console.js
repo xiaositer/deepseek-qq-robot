@@ -1,5 +1,4 @@
 const state = {
-  token: '',
   settings: null,
   status: null,
   logs: [],
@@ -14,32 +13,16 @@ const titles = {
   persona: '角色卡', advanced: '高级设置', logs: '运行日志'
 };
 
-function tokenFromLocation() {
-  const match = location.hash.match(/(?:^#|&)token=([^&]+)/);
-  if (match) {
-    const token = decodeURIComponent(match[1]);
-    sessionStorage.setItem('console-token', token);
-    history.replaceState(null, '', `${location.pathname}${location.search}`);
-    return token;
-  }
-  return sessionStorage.getItem('console-token') ?? '';
-}
-
 async function api(path, options = {}) {
   const response = await fetch(path, {
     ...options,
     headers: {
-      authorization: `Bearer ${state.token}`,
       ...(options.body ? { 'content-type': 'application/json' } : {}),
       ...(options.headers ?? {})
     }
   });
   let body;
   try { body = await response.json(); } catch { body = {}; }
-  if (response.status === 401) {
-    $('authOverlay').hidden = false;
-    throw new Error('控制台令牌无效');
-  }
   if (!response.ok) throw new Error(body.error || `请求失败：${response.status}`);
   return body;
 }
@@ -248,8 +231,6 @@ function startPolling() {
 }
 
 async function bootstrap() {
-  state.token = tokenFromLocation();
-  if (!state.token) { $('authOverlay').hidden = false; return; }
   try {
     fillSettings(await api('/api/settings'));
     await Promise.all([refreshStatus(), refreshLogs()]);
@@ -264,16 +245,5 @@ $('saveButton').addEventListener('click', saveAll);
 $('restartButton').addEventListener('click', () => chatAction('restart'));
 $('toggleChatButton').addEventListener('click', () => chatAction(state.status?.chat?.running ? 'stop' : 'start'));
 $('clearLogsButton').addEventListener('click', () => { state.logs = []; renderLogs(); });
-$('authForm').addEventListener('submit', async (event) => {
-  event.preventDefault();
-  state.token = $('tokenInput').value.trim();
-  sessionStorage.setItem('console-token', state.token);
-  try {
-    fillSettings(await api('/api/settings'));
-    $('authOverlay').hidden = true;
-    await Promise.all([refreshStatus(), refreshLogs()]);
-    startPolling();
-  } catch (error) { showToast(error.message, true); }
-});
 
 bootstrap();

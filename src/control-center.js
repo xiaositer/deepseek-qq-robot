@@ -1,7 +1,6 @@
 import { createServer } from 'node:http';
 import { createConnection } from 'node:net';
-import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SettingsStore } from './settings-store.js';
@@ -9,29 +8,7 @@ import { ChatProcessManager } from './chat-process-manager.js';
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PUBLIC_DIR = path.join(ROOT_DIR, 'public');
-const STATE_DIR = path.join(ROOT_DIR, 'state');
-const TOKEN_PATH = path.join(STATE_DIR, 'console-token.txt');
 const MAX_BODY_BYTES = 200_000;
-
-async function ensureToken() {
-  await mkdir(STATE_DIR, { recursive: true });
-  try {
-    const token = (await readFile(TOKEN_PATH, 'utf8')).trim();
-    if (token.length >= 32) return token;
-  } catch (error) {
-    if (error?.code !== 'ENOENT') throw error;
-  }
-  const token = randomBytes(32).toString('hex');
-  await writeFile(TOKEN_PATH, `${token}\n`, { encoding: 'utf8', mode: 0o600 });
-  return token;
-}
-
-function authorized(request, token) {
-  const value = String(request.headers.authorization ?? '').replace(/^Bearer\s+/i, '');
-  const left = Buffer.from(value);
-  const right = Buffer.from(token);
-  return left.length === right.length && timingSafeEqual(left, right);
-}
 
 function json(response, status, body) {
   response.writeHead(status, {
@@ -92,7 +69,6 @@ function probePort(host, port, timeoutMs = 500) {
 async function main() {
   const settings = new SettingsStore({ rootDir: ROOT_DIR });
   const raw = await settings.readRawConfig();
-  const token = await ensureToken();
   const manager = new ChatProcessManager({ rootDir: ROOT_DIR });
   const port = Number(raw.console?.port ?? 3100);
   const host = '127.0.0.1';
@@ -106,7 +82,6 @@ async function main() {
       if (request.method === 'GET' && url.pathname === '/console.css') return staticFile(response, 'console.css', 'text/css; charset=utf-8');
       if (request.method === 'GET' && url.pathname === '/console.js') return staticFile(response, 'console.js', 'text/javascript; charset=utf-8');
       if (!url.pathname.startsWith('/api/')) return json(response, 404, { error: 'Not found' });
-      if (!authorized(request, token)) return json(response, 401, { error: '控制台令牌无效' });
 
       if (request.method === 'GET' && url.pathname === '/api/status') {
         const config = await settings.readRawConfig();
@@ -163,7 +138,7 @@ async function main() {
   process.on('SIGTERM', () => void shutdown());
 
   server.listen(port, host, () => {
-    const url = `http://${host}:${port}/#token=${token}`;
+    const url = `http://${host}:${port}/`;
     console.info(`[console] 控制台已启动：${url}`);
     if (raw.console?.autoStartChat) {
       manager.start().catch((error) => console.error('[console] 自动启动聊天服务失败：', error.message ?? error));

@@ -160,13 +160,6 @@ select option { background: #102033; }
 .log-line.error, .log-line.error .level { color:#ff8a9b; }
 .log-line.system, .log-line.system .level { color:#6de6b1; }
 
-.auth-overlay { position:fixed; inset:0; z-index:100; display:grid; place-items:center; background:rgba(3,9,16,.88); backdrop-filter:blur(16px); }
-.auth-card { width:min(390px, calc(100vw - 30px)); padding:35px; border:1px solid var(--line-strong); border-radius:20px; background:linear-gradient(145deg,#10273a,#091622); box-shadow:0 30px 100px #000; text-align:center; }
-.auth-card .brand-mark { margin:auto; }
-.auth-card h1 { margin:20px 0 8px; font-size:22px; }
-.auth-card p { color:var(--muted); font-size:12px; }
-.auth-card input { margin:14px 0 10px; }
-.auth-card button { width:100%; }
 .toast { position:fixed; right:24px; bottom:24px; z-index:120; max-width:390px; padding:13px 16px; border:1px solid var(--line-strong); border-radius:11px; color:#dff7ff; background:#10263a; box-shadow:var(--shadow); font-size:11px; opacity:0; transform:translateY(10px); pointer-events:none; transition:.22s ease; }
 .toast.show { opacity:1; transform:translateY(0); }
 .toast.error { color:#ffdbe1; border-color:rgba(255,111,133,.3); background:#351927; }
