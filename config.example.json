@@ -19,9 +19,10 @@
   },
   "chat": {
     "groupReplyMode": "natural",
-    "naturalActiveWindowMs": 120000,
-    "naturalCooldownMs": 20000,
-    "naturalReplyChancePercent": 12,
+    "naturalReviewEveryMessages": 4,
+    "naturalReviewOpenQuestions": true,
+    "groupInputDebounceMs": 8000,
+    "groupMaxInputWaitMs": 20000,
     "inputDebounceMs": 1800,
     "shortInputDebounceMs": 3000,
     "maxInputWaitMs": 8000,

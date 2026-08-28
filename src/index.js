@@ -6,7 +6,7 @@ import { SafetyGuard } from './safety-guard.js';
 import { QQAdapter } from './qq-adapter.js';
 import { ChatController } from './chat-controller.js';
 import { MessageBatcher } from './message-batcher.js';
-import { GroupParticipationPolicy } from './group-participation-policy.js';
+import { NaturalConversationEngine } from './natural-conversation-engine.js';
 
 async function main() {
   const config = await loadConfig();
@@ -24,10 +24,9 @@ async function main() {
     globalPerMinuteLimit: config.chat.globalPerMinuteLimit
   });
   const qq = new QQAdapter(config.onebot);
-  const participation = new GroupParticipationPolicy({
-    activeWindowMs: config.chat.naturalActiveWindowMs,
-    cooldownMs: config.chat.naturalCooldownMs,
-    ambientChancePercent: config.chat.naturalReplyChancePercent
+  const naturalConversation = new NaturalConversationEngine({
+    reviewEveryMessages: config.chat.naturalReviewEveryMessages,
+    reviewOpenQuestions: config.chat.naturalReviewOpenQuestions
   });
   const controller = new ChatController({
     qq,
@@ -35,14 +34,16 @@ async function main() {
     persona,
     store,
     safety,
-    participation,
+    naturalConversation,
     config: config.chat
   });
   const batcher = new MessageBatcher({
     onBatch: (message) => controller.handle(message),
     quietMs: config.chat.inputDebounceMs,
     shortQuietMs: config.chat.shortInputDebounceMs,
-    maxWaitMs: config.chat.maxInputWaitMs
+    maxWaitMs: config.chat.maxInputWaitMs,
+    groupQuietMs: config.chat.groupInputDebounceMs,
+    groupMaxWaitMs: config.chat.groupMaxInputWaitMs
   });
 
   qq.on('message', (message) => {

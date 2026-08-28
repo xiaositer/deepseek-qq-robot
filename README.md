@@ -48,10 +48,10 @@ npm start
 
 - `off`：完全不处理群聊，默认值；
 - `mention`：只有明确 `@` 机器人时回复；
-- `natural`：持续旁听白名单群，被点名必回；回复某人后允许短时间内不 `@` 连续对话；普通消息仅低概率进入插话候选，并由模型再次决定是否沉默；
+- `natural`：消息先进入本地收件箱；被点名、被回复、开放问题或累计一定消息时唤醒模型查看，由模型自主选择发送、等待、已读或继续观察；
 - `all`：处理白名单群内所有文本消息。
 
-拟真聊天建议使用 `natural`。`all` 主要用于调试，日常群聊可能回复得过于频繁。自然模式还会在模型生成期间监听新消息；如果用户继续输入，尚未发送的旧回复会自动取消，避免抢话。
+拟真聊天建议使用 `natural`。`all` 主要用于调试，日常群聊可能回复得过于频繁。自然模式没有固定插话概率、冷却或“活跃窗口”：回复后继续处于观察状态，直到模型根据话题语义选择退出。模型生成期间如果用户继续输入，尚未发送的旧回复会自动取消，避免抢话。
 
 ## 直接启动聊天进程
 
@@ -76,7 +76,7 @@ npm run check
 - `src/qq-adapter.js`：OneBot WebSocket 收发；
 - `src/deepseek-client.js`：DeepSeek 官方 API 直连；
 - `src/chat-controller.js`：消息队列和聊天主流程；
-- `src/group-participation-policy.js`：自然群聊参与、连续对话窗口和插话冷却；
+- `src/natural-conversation-engine.js`：自然群聊收件箱状态、语义唤醒和自主动作协议；
 - `src/message-batcher.js`：连续短消息合并和最长等待控制；
 - `src/recent-context-store.js`：有限近期上下文；
 - `src/control-center.js`：本地控制台 API 与访问控制；

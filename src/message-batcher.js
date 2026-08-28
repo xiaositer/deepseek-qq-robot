@@ -22,17 +22,21 @@ export class MessageBatcher {
   #quietMs;
   #shortQuietMs;
   #maxWaitMs;
+  #groupQuietMs;
+  #groupMaxWaitMs;
   #logger;
   #batches = new Map();
   #inFlight = new Set();
   #closed = false;
 
-  constructor({ onBatch, quietMs = 1_800, shortQuietMs = 3_000, maxWaitMs = 8_000, logger = console }) {
+  constructor({ onBatch, quietMs = 1_800, shortQuietMs = 3_000, maxWaitMs = 8_000, groupQuietMs = 8_000, groupMaxWaitMs = 20_000, logger = console }) {
     if (typeof onBatch !== 'function') throw new Error('MessageBatcher 需要 onBatch 回调');
     this.#onBatch = onBatch;
     this.#quietMs = quietMs;
     this.#shortQuietMs = shortQuietMs;
     this.#maxWaitMs = maxWaitMs;
+    this.#groupQuietMs = groupQuietMs;
+    this.#groupMaxWaitMs = groupMaxWaitMs;
     this.#logger = logger;
   }
 
@@ -42,14 +46,17 @@ export class MessageBatcher {
     let batch = this.#batches.get(key);
     if (!batch) {
       batch = { messages: [], quietTimer: null, maxTimer: null };
-      batch.maxTimer = setTimeout(() => this.#emit(key), this.#maxWaitMs);
+      const maxWait = message.kind === 'group' ? this.#groupMaxWaitMs : this.#maxWaitMs;
+      batch.maxTimer = setTimeout(() => this.#emit(key), maxWait);
       batch.maxTimer.unref?.();
       this.#batches.set(key, batch);
     }
     if (batch.messages.some((item) => String(item.id) === String(message.id))) return false;
     batch.messages.push(message);
     clearTimeout(batch.quietTimer);
-    const delay = isShortUnfinishedText(message.content) ? this.#shortQuietMs : this.#quietMs;
+    const delay = message.kind === 'group' && !message.mentionedSelf
+      ? this.#groupQuietMs
+      : isShortUnfinishedText(message.content) ? this.#shortQuietMs : this.#quietMs;
     batch.quietTimer = setTimeout(() => this.#emit(key), delay);
     batch.quietTimer.unref?.();
     return true;

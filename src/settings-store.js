@@ -94,9 +94,10 @@ export function mergeAndValidateSettings(current, submitted, secrets = {}) {
     chat: {
       ...(current.chat ?? {}),
       groupReplyMode,
-      naturalActiveWindowMs: integer(chat.naturalActiveWindowMs ?? 120_000, 'chat.naturalActiveWindowMs', { min: 10_000, max: 1_800_000 }),
-      naturalCooldownMs: integer(chat.naturalCooldownMs ?? 20_000, 'chat.naturalCooldownMs', { min: 1_000, max: 600_000 }),
-      naturalReplyChancePercent: integer(chat.naturalReplyChancePercent ?? 12, 'chat.naturalReplyChancePercent', { min: 0, max: 100 }),
+      naturalReviewEveryMessages: integer(chat.naturalReviewEveryMessages ?? 4, 'chat.naturalReviewEveryMessages', { min: 1, max: 100 }),
+      naturalReviewOpenQuestions: chat.naturalReviewOpenQuestions !== false,
+      groupInputDebounceMs: integer(chat.groupInputDebounceMs ?? 8_000, 'chat.groupInputDebounceMs', { min: 500, max: 60_000 }),
+      groupMaxInputWaitMs: integer(chat.groupMaxInputWaitMs ?? 20_000, 'chat.groupMaxInputWaitMs', { min: 1_000, max: 120_000 }),
       inputDebounceMs: integer(chat.inputDebounceMs, 'chat.inputDebounceMs', { min: 100, max: 30_000 }),
       shortInputDebounceMs: integer(chat.shortInputDebounceMs, 'chat.shortInputDebounceMs', { min: 100, max: 30_000 }),
       maxInputWaitMs: integer(chat.maxInputWaitMs, 'chat.maxInputWaitMs', { min: 500, max: 120_000 }),
@@ -114,6 +115,10 @@ export function mergeAndValidateSettings(current, submitted, secrets = {}) {
     personaPath: localPath(input.personaPath, 'personaPath'),
     statePath: localPath(input.statePath, 'statePath')
   };
+
+  delete next.chat.naturalActiveWindowMs;
+  delete next.chat.naturalCooldownMs;
+  delete next.chat.naturalReplyChancePercent;
 
   const deepseekApiKey = String(secrets.deepseekApiKey ?? '').trim();
   const onebotAccessToken = String(secrets.onebotAccessToken ?? '').trim();

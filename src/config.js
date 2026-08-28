@@ -19,12 +19,6 @@ function asNonNegativeInteger(value, fallback, name) {
   return parsed;
 }
 
-function asPercentage(value, fallback, name) {
-  const parsed = asNonNegativeInteger(value, fallback, name);
-  if (parsed > 100) throw new Error(`${name} 必须是 0-100 之间的整数`);
-  return parsed;
-}
-
 function asIdList(value, name) {
   if (value === undefined) return [];
   if (!Array.isArray(value)) throw new Error(`${name} 必须是数组`);
@@ -94,9 +88,10 @@ export async function loadConfig({ cwd = process.cwd(), env = process.env } = {}
     },
     chat: {
       groupReplyMode,
-      naturalActiveWindowMs: asPositiveInteger(file.chat?.naturalActiveWindowMs, 120_000, 'chat.naturalActiveWindowMs'),
-      naturalCooldownMs: asPositiveInteger(file.chat?.naturalCooldownMs, 20_000, 'chat.naturalCooldownMs'),
-      naturalReplyChancePercent: asPercentage(file.chat?.naturalReplyChancePercent, 12, 'chat.naturalReplyChancePercent'),
+      naturalReviewEveryMessages: asPositiveInteger(file.chat?.naturalReviewEveryMessages, 4, 'chat.naturalReviewEveryMessages'),
+      naturalReviewOpenQuestions: file.chat?.naturalReviewOpenQuestions !== false,
+      groupInputDebounceMs: asPositiveInteger(file.chat?.groupInputDebounceMs, 8_000, 'chat.groupInputDebounceMs'),
+      groupMaxInputWaitMs: asPositiveInteger(file.chat?.groupMaxInputWaitMs, 20_000, 'chat.groupMaxInputWaitMs'),
       inputDebounceMs: asPositiveInteger(file.chat?.inputDebounceMs, 1_800, 'chat.inputDebounceMs'),
       shortInputDebounceMs: asPositiveInteger(file.chat?.shortInputDebounceMs, 3_000, 'chat.shortInputDebounceMs'),
       maxInputWaitMs: asPositiveInteger(file.chat?.maxInputWaitMs, 8_000, 'chat.maxInputWaitMs'),

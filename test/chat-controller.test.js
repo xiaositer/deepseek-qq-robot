@@ -123,13 +123,39 @@ test('observes passive natural group messages without calling the model', async 
     deepseek: { chat: async () => { modelCalled = true; return { content: 'x' }; } },
     persona: 'x', store,
     safety: new SafetyGuard({ allow: { private: [], groups: ['1'] }, perMinuteLimit: 5, globalPerMinuteLimit: 5 }),
-    participation: { decide: () => ({ respond: false, reason: '旁听' }) },
+    naturalConversation: { observe: () => ({ review: false, reason: '旁听' }) },
     config: { groupReplyMode: 'natural', maxReplyChars: 100, maxReplyParts: 3, sendGapMs: 1 },
     logger: { info() {}, error() {} }
   });
   await controller.handle({ id: 'ambient', kind: 'group', targetId: '1', conversationId: 'group:1', senderId: '10', senderName: '甲', content: '天气不错' });
   assert.equal(modelCalled, false);
   assert.deepEqual(store.get('group:1').map((item) => item.content), ['甲：天气不错']);
+});
+
+test('executes a structured natural send action', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'qq-chat-'));
+  const store = new RecentContextStore({ filePath: path.join(directory, 'context.json'), maxMessages: 10 });
+  await store.init();
+  const sent = [];
+  const applied = [];
+  const naturalConversation = {
+    observe: () => ({ review: true, reason: '被点名' }),
+    snapshot: () => ({ phase: 'sleeping' }),
+    applyDecision: (...args) => applied.push(args)
+  };
+  const controller = new ChatController({
+    qq: { sendText: async (...args) => { sent.push(args); return { message_id: sent.length }; } },
+    deepseek: { chat: async () => ({ content: '{"action":"send","messages":["在的","咋了"],"topic":"测试"}' }) },
+    persona: 'x', store,
+    safety: new SafetyGuard({ allow: { private: [], groups: ['1'] }, perMinuteLimit: 5, globalPerMinuteLimit: 5 }),
+    naturalConversation,
+    config: { groupReplyMode: 'natural', maxReplyChars: 100, maxReplyParts: 3, sendGapMs: 1 },
+    logger: { info() {}, warn() {}, error() {} }
+  });
+  await controller.handle({ id: 'natural-send', kind: 'group', targetId: '1', conversationId: 'group:1', senderId: '10', content: '小鲸鱼在吗' });
+  assert.deepEqual(sent, [['group', '1', '在的'], ['group', '1', '咋了']]);
+  assert.equal(applied.length, 1);
+  assert.equal(applied[0][1].action, 'send');
 });
 
 test('cancels an unsent reply when a newer message arrives', async () => {
