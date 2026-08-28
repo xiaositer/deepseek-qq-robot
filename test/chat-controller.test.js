@@ -191,3 +191,31 @@ test('cancels an unsent reply when a newer message arrives', async () => {
   await pending;
   assert.deepEqual(sent, []);
 });
+
+test('merges messages received during rate-limit cooldown and replies once later', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'qq-chat-'));
+  const store = new RecentContextStore({ filePath: path.join(directory, 'context.json'), maxMessages: 10 });
+  await store.init();
+  const sent = [];
+  const modelCalls = [];
+  let checks = 0;
+  const safety = {
+    isAllowed: () => true,
+    retryAfterMs: () => (++checks <= 2 ? 20 : 0),
+    reserveSend: () => {}
+  };
+  const controller = new ChatController({
+    qq: { sendText: async (...args) => sent.push(args) },
+    deepseek: { chat: async (messages) => { modelCalls.push(messages); return { content: '合并回复' }; } },
+    persona: 'x', store, safety,
+    config: { groupReplyMode: 'off', maxReplyChars: 100, maxReplyParts: 3, sendGapMs: 1 },
+    logger: { info() {}, error() {} }
+  });
+  await controller.handle({ id: 'defer-1', kind: 'private', targetId: '1', conversationId: 'private:1', senderId: '1', content: '第一段' });
+  await controller.handle({ id: 'defer-2', kind: 'private', targetId: '1', conversationId: 'private:1', senderId: '1', content: '第二段' });
+  await new Promise((resolve) => setTimeout(resolve, 450));
+  await controller.flush();
+  assert.equal(modelCalls.length, 1);
+  assert.deepEqual(sent, [['private', '1', '合并回复']]);
+  assert.deepEqual(modelCalls[0].slice(-2).map((item) => item.content), ['第一段', '第二段']);
+});

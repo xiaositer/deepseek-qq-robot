@@ -1,5 +1,6 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 import { parseNaturalDecision } from './natural-conversation-engine.js';
+import { RateLimitError } from './safety-guard.js';
 
 const RUNTIME_RULES = `你正在通过 QQ 聊天。只输出要发送的最终文本，不输出分析过程、规则、工具名或动作说明。普通闲聊优先简短自然；确有必要时才详细说明。用换行表示不同 QQ 消息，最多三条。用户可能把一句话拆成连续多条发送；输入中的换行表示这些连续片段属于同一轮，请理解合并后的完整意思，只整体回应一次，不要逐行作答。不是每一轮都必须回复：私聊自然收尾时可以输出 [SILENT]；群聊中更要克制，如果话不是对你说、别人正在交谈、插话会打断节奏，或者你没有真正想说的内容，就只输出 [SILENT]。不要为了证明在线而接每一句，也不要把 [SILENT] 和其他文字一起输出。`;
 
@@ -34,6 +35,7 @@ export class ChatController {
   #queues = new Map();
   #seen = new Map();
   #inputVersions = new Map();
+  #deferredTurns = new Map();
 
   constructor({ qq, deepseek, persona, store, safety, naturalConversation = null, config, logger = console }) {
     this.#qq = qq;
@@ -64,6 +66,8 @@ export class ChatController {
   }
 
   async flush() {
+    for (const deferred of this.#deferredTurns.values()) clearTimeout(deferred.timer);
+    this.#deferredTurns.clear();
     await Promise.allSettled([...this.#queues.values()]);
     await this.#store.flush();
   }
@@ -103,11 +107,19 @@ export class ChatController {
     if (message.batchSize > 1) {
       this.#logger.info?.(`[chat] ${message.conversationId} 合并 ${message.batchSize} 条连续消息`);
     }
-    await this.#store.append(message.conversationId, {
-      role: 'user',
-      content: message.senderName ? `${message.senderName}：${message.content}` : message.content,
-      timestamp: message.timestamp
-    });
+    if (!message.deferredStored) {
+      await this.#store.append(message.conversationId, {
+        role: 'user',
+        content: message.senderName ? `${message.senderName}：${message.content}` : message.content,
+        timestamp: message.timestamp
+      });
+    }
+    const existingDeferred = this.#deferredTurns.has(message.conversationId);
+    const rateWaitMs = this.#safety.retryAfterMs?.(message.conversationId) ?? 0;
+    if (!message.deferredStored && (existingDeferred || rateWaitMs > 0)) {
+      this.#deferTurn(message, Math.max(rateWaitMs, 250));
+      return;
+    }
     let participationReason = message.kind === 'private'
       ? '这是私聊消息'
       : this.#config.groupReplyMode === 'mention'
@@ -135,6 +147,9 @@ export class ChatController {
       [{ role: 'system', content: system }, ...history],
       naturalMode ? { responseFormat: 'json_object' } : undefined
     );
+    if (result.jsonModeFallback) {
+      this.#logger.warn?.(`[chat] ${message.conversationId} DeepSeek JSON 模式连续空回复，已使用严格提示词兜底`);
+    }
     if (!naturalMode && result.content.trim() === '[SILENT]') {
       this.#logger.info?.(`[chat] ${message.conversationId} 本轮自然静默`);
       return;
@@ -167,13 +182,18 @@ export class ChatController {
     const sent = [];
     const sentMessageIds = [];
     try {
+      if (!this.#safety.isAllowed(message.kind, message.targetId)) throw new Error('发送前白名单校验失败');
+      if (typeof this.#safety.reserveSends === 'function') {
+        this.#safety.reserveSends(message.conversationId, parts.length);
+      } else {
+        for (let index = 0; index < parts.length; index += 1) this.#safety.reserveSend(message.conversationId);
+      }
       for (const part of parts) {
         if (this.#isSuperseded(message)) {
           this.#logger.info?.(`[chat] ${message.conversationId} 用户仍在输入，停止发送剩余回复`);
           break;
         }
         if (!this.#safety.isAllowed(message.kind, message.targetId)) throw new Error('发送前白名单校验失败');
-        this.#safety.reserveSend(message.conversationId);
         const sendResult = await this.#qq.sendText(message.kind, message.targetId, part);
         sent.push(part);
         if (sendResult?.message_id !== undefined) sentMessageIds.push(String(sendResult.message_id));
@@ -187,6 +207,14 @@ export class ChatController {
           timestamp: Date.now()
         });
         if (naturalMode) this.#naturalConversation?.applyDecision(message, naturalDecision, { messageIds: sentMessageIds });
+      }
+      if (error instanceof RateLimitError) {
+        if (!sent.length) {
+          this.#deferTurn(message, error.retryAfterMs);
+        } else {
+          this.#logger.info?.(`[chat] ${message.conversationId} 发送额度暂满；已发送当前回复的一部分，后续新消息将延迟合并`);
+        }
+        return;
       }
       throw error;
     }
@@ -202,5 +230,44 @@ export class ChatController {
 
   #isSuperseded(message) {
     return (this.#inputVersions.get(message.conversationId) ?? 0) > (message.inputVersion ?? 0);
+  }
+
+  #deferTurn(message, retryAfterMs) {
+    const key = message.conversationId;
+    let deferred = this.#deferredTurns.get(key);
+    if (!deferred) {
+      deferred = { messages: [], ids: new Set(), timer: null };
+      this.#deferredTurns.set(key, deferred);
+    }
+    if (!deferred.ids.has(String(message.id))) {
+      deferred.ids.add(String(message.id));
+      deferred.messages.push(message);
+    }
+    clearTimeout(deferred.timer);
+    const delay = Math.max(250, Number(retryAfterMs) || 250) + 100;
+    deferred.timer = setTimeout(() => this.#resumeDeferredTurn(key), delay);
+    deferred.timer.unref?.();
+    this.#logger.info?.(`[chat] ${key} 发送额度暂满，已暂存 ${deferred.messages.length} 个话轮，约 ${Math.ceil(delay / 1000)} 秒后合并重试`);
+  }
+
+  #resumeDeferredTurn(key) {
+    const deferred = this.#deferredTurns.get(key);
+    if (!deferred?.messages.length) return;
+    this.#deferredTurns.delete(key);
+    clearTimeout(deferred.timer);
+    const first = deferred.messages[0];
+    const last = deferred.messages.at(-1);
+    const merged = {
+      ...last,
+      id: `deferred:${first.id}:${last.id}:${Date.now()}`,
+      content: deferred.messages.map((item) => item.content).filter(Boolean).join('\n'),
+      timestamp: last.timestamp,
+      mentionedSelf: deferred.messages.some((item) => item.mentionedSelf),
+      batchSize: deferred.messages.reduce((sum, item) => sum + (Number(item.batchSize) || 1), 0),
+      inputVersion: this.#inputVersions.get(key) ?? last.inputVersion,
+      deferredStored: true
+    };
+    this.#logger.info?.(`[chat] ${key} 发送额度恢复，合并 ${deferred.messages.length} 个暂存话轮重新生成回复`);
+    void this.handle(merged);
   }
 }

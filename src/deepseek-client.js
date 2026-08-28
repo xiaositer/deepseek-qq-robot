@@ -3,11 +3,12 @@ import { setTimeout as sleep } from 'node:timers/promises';
 const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
 
 export class DeepSeekError extends Error {
-  constructor(message, { status, retryable = false, cause } = {}) {
+  constructor(message, { status, retryable = false, cause, code } = {}) {
     super(message, { cause });
     this.name = 'DeepSeekError';
     this.status = status;
     this.retryable = retryable;
+    this.code = code;
   }
 }
 
@@ -28,7 +29,13 @@ export class DeepSeekClient {
         return await this.#request(messages, options);
       } catch (error) {
         lastError = error;
-        if (!error?.retryable || attempt === this.#config.maxRetries) throw error;
+        if (!error?.retryable || attempt === this.#config.maxRetries) {
+          if (options.responseFormat === 'json_object' && error?.code === 'EMPTY_RESPONSE') {
+            const fallback = await this.#request(messages, { ...options, responseFormat: undefined });
+            return { ...fallback, jsonModeFallback: true };
+          }
+          throw error;
+        }
         const delay = Math.min(500 * (2 ** attempt) + Math.floor(Math.random() * 250), 3_000);
         await sleep(delay);
       }
@@ -90,7 +97,8 @@ export class DeepSeekClient {
     const content = body?.choices?.[0]?.message?.content;
     if (typeof content !== 'string' || !content.trim()) {
       throw new DeepSeekError('DeepSeek 返回了空回复', {
-        retryable: options.responseFormat === 'json_object'
+        retryable: options.responseFormat === 'json_object',
+        code: 'EMPTY_RESPONSE'
       });
     }
 

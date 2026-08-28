@@ -60,3 +60,26 @@ test('does not retry an authentication error', async () => {
   await assert.rejects(() => client.chat([]), (error) => error instanceof DeepSeekError && error.status === 401);
   assert.equal(calls, 1);
 });
+
+test('falls back to strict prompted text mode after repeated empty JSON responses', async () => {
+  const bodies = [];
+  const client = new DeepSeekClient({ ...config, maxRetries: 1 }, {
+    fetchImpl: async (_url, options) => {
+      const body = JSON.parse(options.body);
+      bodies.push(body);
+      const content = body.response_format ? '' : '{"action":"send","messages":["在的"]}';
+      return new Response(JSON.stringify({ choices: [{ message: { content } }] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      });
+    }
+  });
+  const result = await client.chat([{ role: 'system', content: '输出 JSON' }], { responseFormat: 'json_object' });
+  assert.equal(bodies.length, 3);
+  assert.deepEqual(bodies.slice(0, 2).map((body) => body.response_format), [
+    { type: 'json_object' },
+    { type: 'json_object' }
+  ]);
+  assert.equal(bodies[2].response_format, undefined);
+  assert.equal(result.jsonModeFallback, true);
+});
