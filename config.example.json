@@ -4,6 +4,7 @@
     "accessToken": ""
   },
   "deepseek": {
+    "apiKey": "",
     "baseUrl": "https://api.deepseek.com",
     "model": "deepseek-v4-flash",
     "timeoutMs": 45000,

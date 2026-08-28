@@ -19,7 +19,7 @@
 1. 复制 `config.example.json` 为 `config.json`；
 2. 将自己的 QQ 号写入 `allow.private`；
 3. 确认 SnowLuma WebSocket 地址，默认是 `ws://127.0.0.1:3001`；
-4. 在当前 PowerShell 会话设置 DeepSeek API Key；
+4. 在当前 PowerShell 会话设置 DeepSeek API Key，或写入本地 `config.json` 的 `deepseek.apiKey`；
 5. 启动 SnowLuma 后再启动本项目。
 
 PowerShell 示例：
@@ -30,7 +30,7 @@ $env:DEEPSEEK_API_KEY = "你的 API Key"
 npm start
 ```
 
-不要把真实 API Key 写入 `config.json`、`.env.example` 或提交到 Git。
+环境变量优先级高于 `config.json`。如果按本地配置方式保存 Key，`config.json` 已被 `.gitignore` 排除，仍不要复制到公开位置或提交到 Git。
 
 ## 群聊模式
 

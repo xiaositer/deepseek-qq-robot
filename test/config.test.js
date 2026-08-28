@@ -21,5 +21,14 @@ test('loads safe defaults and resolves project paths', async () => {
 test('requires the DeepSeek API key', async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'qq-config-'));
   await writeFile(path.join(directory, 'config.json'), '{}', 'utf8');
-  await assert.rejects(() => loadConfig({ cwd: directory, env: {} }), /DEEPSEEK_API_KEY/);
+  await assert.rejects(() => loadConfig({ cwd: directory, env: {} }), /DeepSeek API Key/);
+});
+
+test('can load an API key from local config', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'qq-config-'));
+  await writeFile(path.join(directory, 'config.json'), JSON.stringify({
+    deepseek: { apiKey: 'local-test-key' }
+  }), 'utf8');
+  const config = await loadConfig({ cwd: directory, env: {} });
+  assert.equal(config.deepseek.apiKey, 'local-test-key');
 });

@@ -38,8 +38,8 @@ export async function loadConfig({ cwd = process.cwd(), env = process.env } = {}
     throw error;
   }
 
-  const apiKey = String(env.DEEPSEEK_API_KEY ?? '').trim();
-  if (!apiKey) throw new Error('缺少环境变量 DEEPSEEK_API_KEY');
+  const apiKey = String(env.DEEPSEEK_API_KEY ?? file.deepseek?.apiKey ?? '').trim();
+  if (!apiKey) throw new Error('缺少 DeepSeek API Key（请设置环境变量或 deepseek.apiKey）');
 
   const rootDir = path.dirname(configPath);
   const groupReplyMode = String(file.chat?.groupReplyMode ?? 'off');
