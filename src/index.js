@@ -54,6 +54,9 @@ async function main() {
   };
   process.on('SIGINT', () => void shutdown('SIGINT'));
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
+  process.on('message', (message) => {
+    if (message?.type === 'shutdown') void shutdown('CONTROL_CENTER');
+  });
 
   console.info(`[app] 固定角色卡已加载（${persona.length} 字符）`);
   console.info(`[app] 私聊白名单 ${config.allow.private.length} 个，群聊白名单 ${config.allow.groups.length} 个`);

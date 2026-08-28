@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>小鲸鱼控制台</title>
+  <link rel="stylesheet" href="/console.css">
+</head>
+<body>
+  <div class="auth-overlay" id="authOverlay" hidden>
+    <form class="auth-card" id="authForm">
+      <div class="brand-mark">鲸</div>
+      <h1>连接本地控制台</h1>
+      <p>输入启动日志中的控制台令牌。</p>
+      <input id="tokenInput" type="password" autocomplete="off" placeholder="控制台令牌" required>
+      <button type="submit" class="button primary">进入控制台</button>
+    </form>
+  </div>
+
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">鲸</div>
+        <div><strong>小鲸鱼</strong><span>Control Center</span></div>
+      </div>
+      <nav id="navigation">
+        <button class="nav-item active" data-page="overview"><span>◫</span>运行概览</button>
+        <button class="nav-item" data-page="access"><span>◎</span>QQ 接入</button>
+        <button class="nav-item" data-page="model"><span>◇</span>模型配置</button>
+        <button class="nav-item" data-page="behavior"><span>≋</span>聊天行为</button>
+        <button class="nav-item" data-page="persona"><span>✦</span>角色卡</button>
+        <button class="nav-item" data-page="advanced"><span>⚙</span>高级设置</button>
+        <button class="nav-item" data-page="logs"><span>_</span>运行日志</button>
+      </nav>
+      <div class="sidebar-foot">
+        <span class="dot" id="sideDot"></span>
+        <div><strong id="sideStatus">正在连接</strong><small>仅限本机访问</small></div>
+      </div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">QQ PERSONA COMPANION</p>
+          <h1 id="pageTitle">运行概览</h1>
+        </div>
+        <div class="header-actions">
+          <span class="status-pill" id="chatPill"><span class="dot"></span><b>聊天已停止</b></span>
+          <button class="button ghost" id="restartButton">重启聊天</button>
+          <button class="button primary" id="saveButton">保存全部</button>
+        </div>
+      </header>
+
+      <div class="content">
+        <section class="page active" data-page="overview">
+          <div class="hero card">
+            <div>
+              <p class="eyebrow">SYSTEM OVERVIEW</p>
+              <h2>让小鲸鱼保持在线，也保持自然。</h2>
+              <p>从一个地方管理 QQ 接入、DeepSeek、聊天节奏与固定角色卡。</p>
+              <div class="hero-actions">
+                <button class="button primary" id="toggleChatButton">启动聊天</button>
+                <button class="button ghost" data-jump="persona">编辑角色卡</button>
+              </div>
+            </div>
+            <div class="whale-orbit" aria-hidden="true"><div class="whale">鲸</div></div>
+          </div>
+
+          <div class="metric-grid">
+            <article class="metric card"><span>SnowLuma</span><strong id="metricSnow">检查中</strong><small id="metricSnowDetail">OneBot WebSocket</small></article>
+            <article class="metric card"><span>聊天服务</span><strong id="metricChat">已停止</strong><small id="metricPid">PID —</small></article>
+            <article class="metric card"><span>白名单</span><strong id="metricAllow">—</strong><small>私聊 / 群聊</small></article>
+            <article class="metric card"><span>当前模型</span><strong id="metricModel">—</strong><small id="metricApi">DeepSeek API</small></article>
+          </div>
+
+          <div class="two-column">
+            <article class="card panel">
+              <div class="panel-head"><div><p class="eyebrow">QUICK CONTROL</p><h3>服务控制</h3></div></div>
+              <div class="service-row"><div><span class="service-icon blue">S</span><div><strong>SnowLuma</strong><small>QQ / OneBot 网关</small></div></div><span class="badge" id="snowBadge">检查中</span></div>
+              <div class="service-row"><div><span class="service-icon cyan">D</span><div><strong>DeepSeek Chat</strong><small>模型与角色回复</small></div></div><span class="badge" id="deepseekBadge">已配置</span></div>
+              <div class="service-row"><div><span class="service-icon violet">Q</span><div><strong>聊天工作进程</strong><small>收发与上下文</small></div></div><span class="badge" id="workerBadge">已停止</span></div>
+            </article>
+            <article class="card panel log-preview">
+              <div class="panel-head"><div><p class="eyebrow">LIVE ACTIVITY</p><h3>最近日志</h3></div><button class="text-button" data-jump="logs">查看全部</button></div>
+              <div class="mini-logs" id="miniLogs"><div class="empty">暂无运行日志</div></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="page" data-page="access">
+          <div class="section-heading"><div><p class="eyebrow">QQ / ONEBOT</p><h2>QQ 接入与白名单</h2><p>管理 SnowLuma 连接、允许私聊的账号与群聊响应范围。</p></div></div>
+          <div class="form-grid">
+            <article class="card form-card span-2">
+              <div class="card-title"><span class="service-icon blue">↗</span><div><h3>OneBot WebSocket</h3><p>SnowLuma 正向 WebSocket 服务端</p></div></div>
+              <div class="field-row"><label class="field grow"><span>WebSocket 地址</span><input id="onebotWsUrl" type="url" placeholder="ws://127.0.0.1:3001"></label><label class="field grow"><span>Access Token</span><input id="onebotToken" type="password" autocomplete="new-password" placeholder="留空保留当前 Token"><small id="onebotTokenState"></small></label></div>
+            </article>
+            <article class="card form-card">
+              <div class="card-title"><span class="service-icon cyan">私</span><div><h3>私聊白名单</h3><p>一行一个 QQ 号</p></div></div>
+              <label class="field"><textarea id="privateAllow" rows="8" placeholder="1516453033"></textarea></label>
+            </article>
+            <article class="card form-card">
+              <div class="card-title"><span class="service-icon violet">群</span><div><h3>群聊白名单</h3><p>一行一个群号</p></div></div>
+              <label class="field"><textarea id="groupAllow" rows="8" placeholder="100950944"></textarea></label>
+              <label class="field"><span>群聊触发方式</span><select id="groupReplyMode"><option value="off">关闭群聊</option><option value="mention">仅 @ 时回复</option><option value="all">每条群消息都进入处理</option></select><small>“all” 可能高频回复，建议等自然插话策略完成后再使用。</small></label>
+            </article>
+          </div>
+        </section>
+
+        <section class="page" data-page="model">
+          <div class="section-heading"><div><p class="eyebrow">MODEL PROVIDER</p><h2>DeepSeek 与模型 API</h2><p>已有密钥不会显示；密钥框留空即可保留。</p></div></div>
+          <div class="form-grid">
+            <article class="card form-card span-2">
+              <div class="card-title"><span class="service-icon cyan">D</span><div><h3>DeepSeek 官方 API</h3><p>OpenAI Chat Completions 兼容接口</p></div></div>
+              <div class="field-row"><label class="field grow"><span>API Base URL</span><input id="deepseekBaseUrl" type="url"></label><label class="field grow"><span>模型名称</span><input id="deepseekModel" type="text"></label></div>
+              <label class="field"><span>API Key</span><input id="deepseekApiKey" type="password" autocomplete="new-password" placeholder="留空保留当前 Key"><small id="deepseekKeyState"></small></label>
+            </article>
+            <article class="card form-card"><h3>请求参数</h3><div class="field-row"><label class="field grow"><span>超时（ms）</span><input id="deepseekTimeout" type="number"></label><label class="field grow"><span>重试次数</span><input id="deepseekRetries" type="number"></label></div><label class="field"><span>最大输出 Token</span><input id="deepseekMaxTokens" type="number"></label></article>
+            <article class="card form-card callout"><p class="eyebrow">CURRENT STRATEGY</p><h3>日常聊天使用非思考模式</h3><p>降低等待时间，让短句对话更接近即时聊天。复杂推理模式暂不在第一阶段自动切换。</p></article>
+          </div>
+        </section>
+
+        <section class="page" data-page="behavior">
+          <div class="section-heading"><div><p class="eyebrow">CONVERSATION RHYTHM</p><h2>聊天行为与节奏</h2><p>调整消息合并、上下文长度、回复分条和安全限流。</p></div></div>
+          <div class="form-grid">
+            <article class="card form-card"><h3>输入等待</h3><label class="field"><span>完整消息静默窗口（ms）</span><input id="inputDebounce" type="number"></label><label class="field"><span>短片段静默窗口（ms）</span><input id="shortInputDebounce" type="number"></label><label class="field"><span>最长等待（ms）</span><input id="maxInputWait" type="number"></label></article>
+            <article class="card form-card"><h3>回复输出</h3><label class="field"><span>单条最大字符</span><input id="maxReplyChars" type="number"></label><label class="field"><span>最多分条</span><input id="maxReplyParts" type="number"></label><label class="field"><span>分条间隔（ms）</span><input id="sendGap" type="number"></label></article>
+            <article class="card form-card"><h3>上下文</h3><label class="field"><span>每会话保留消息数</span><input id="contextMessages" type="number"></label><p class="hint-box">这是有限的近期上下文，不是长期记忆。数值越大，请求 token 越多。</p></article>
+            <article class="card form-card"><h3>发送限流</h3><label class="field"><span>单会话每分钟</span><input id="perMinuteLimit" type="number"></label><label class="field"><span>全局每分钟</span><input id="globalPerMinuteLimit" type="number"></label><p class="hint-box warning">降低风控风险。不要为了测试临时设得过高。</p></article>
+          </div>
+        </section>
+
+        <section class="page" data-page="persona">
+          <div class="section-heading persona-heading"><div><p class="eyebrow">FIXED PERSONA</p><h2>小鲸鱼角色卡</h2><p>保存后重启聊天服务生效。当前只使用这一张固定角色卡。</p></div><div class="char-count"><b id="personaCount">0</b><span>/ 50,000 字符</span></div></div>
+          <article class="card editor-card"><div class="editor-toolbar"><span>persona/fixed.md</span><span class="badge">Markdown</span></div><textarea id="personaEditor" spellcheck="false"></textarea></article>
+        </section>
+
+        <section class="page" data-page="advanced">
+          <div class="section-heading"><div><p class="eyebrow">ADVANCED</p><h2>高级与运行设置</h2><p>路径只能位于当前项目目录内。</p></div></div>
+          <div class="form-grid">
+            <article class="card form-card"><h3>本地文件</h3><label class="field"><span>角色卡路径</span><input id="personaPath" type="text"></label><label class="field"><span>上下文状态路径</span><input id="statePath" type="text"></label></article>
+            <article class="card form-card"><h3>控制台</h3><label class="field"><span>本地端口</span><input id="consolePort" type="number"></label><label class="toggle"><input id="autoStartChat" type="checkbox"><span></span><div><strong>控制台启动时自动启动聊天</strong><small>修改端口需要手动重启控制台</small></div></label></article>
+            <article class="card form-card span-2 danger-zone"><div><h3>密钥操作</h3><p>只有明确勾选并保存时才会清空，普通保存不会影响现有密钥。</p></div><label class="check"><input id="clearDeepseekKey" type="checkbox">清空 DeepSeek API Key</label><label class="check"><input id="clearOnebotToken" type="checkbox">清空 OneBot Access Token</label></article>
+          </div>
+        </section>
+
+        <section class="page" data-page="logs">
+          <div class="section-heading"><div><p class="eyebrow">RUNTIME LOGS</p><h2>聊天服务日志</h2><p>仅保留控制台运行期间最近 500 条。</p></div><button class="button ghost" id="clearLogsButton">清空视图</button></div>
+          <article class="card terminal"><div class="terminal-bar"><span></span><span></span><span></span><b>qq-persona-companion</b></div><div id="logOutput" class="log-output"><div class="empty">暂无日志</div></div></article>
+        </section>
+      </div>
+    </main>
+  </div>
+  <div class="toast" id="toast" role="status"></div>
+  <script src="/console.js" defer></script>
+</body>
+</html>

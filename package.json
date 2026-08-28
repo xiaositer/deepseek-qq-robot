@@ -8,8 +8,9 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "start": "node src/index.js",
-    "check": "node --check src/index.js",
+    "start": "node src/control-center.js",
+    "chat": "node src/index.js",
+    "check": "node --check src/control-center.js && node --check src/index.js",
     "test": "node --test"
   }
 }

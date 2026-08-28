@@ -1,6 +1,6 @@
 # QQ Persona Companion
 
-一个最小化的 QQ 人格聊天程序：通过 SnowLuma 提供的 OneBot v11 WebSocket 接收 QQ 文本消息，固定使用“小鲸鱼”角色卡，并直接调用 DeepSeek 官方 API 回复。
+一个带本地 Web 控制台的 QQ 人格聊天程序：通过 SnowLuma 提供的 OneBot v11 WebSocket 接收 QQ 文本消息，固定使用“小鲸鱼”角色卡，并直接调用 DeepSeek 官方 API 回复。
 
 当前版本只做文本聊天，不使用 DSH，也不包含主动聊天、长期记忆、人格切换、图片、语音、表情包、搜索或通用 Agent 工具。
 
@@ -18,23 +18,29 @@
 
 项目没有第三方 npm 运行依赖，因此不需要执行 `npm install`。
 
-## 配置
+## 启动控制台
 
-1. 复制 `config.example.json` 为 `config.json`；
-2. 将自己的 QQ 号写入 `allow.private`；
-3. 确认 SnowLuma WebSocket 地址，默认是 `ws://127.0.0.1:3001`；
-4. 在当前 PowerShell 会话设置 DeepSeek API Key，或写入本地 `config.json` 的 `deepseek.apiKey`；
-5. 启动 SnowLuma 后再启动本项目。
+首次运行前复制配置示例：
 
 PowerShell 示例：
 
 ```powershell
 Copy-Item -LiteralPath config.example.json -Destination config.json
-$env:DEEPSEEK_API_KEY = "你的 API Key"
 npm start
 ```
 
-环境变量优先级高于 `config.json`。如果按本地配置方式保存 Key，`config.json` 已被 `.gitignore` 排除，仍不要复制到公开位置或提交到 Git。
+启动日志会显示一个带本地令牌的控制台地址，格式为 `http://127.0.0.1:3100/#token=...`。打开后可以管理：
+
+- 聊天服务启动、停止和重启；
+- SnowLuma WebSocket 地址与 Token；
+- 私聊和群聊白名单；
+- DeepSeek API Key、地址、模型、超时、重试和输出长度；
+- 连续消息等待、上下文、分条回复与限流；
+- 完整固定角色卡；
+- 项目内路径、控制台端口和自动启动；
+- 最近 500 条聊天服务运行日志。
+
+已有 API Key 和 OneBot Token 不会发送到浏览器，页面只显示是否已经配置。密钥输入框留空表示保留原值。`config.json` 和控制台令牌均被 `.gitignore` 排除。
 
 ## 群聊模式
 
@@ -46,13 +52,13 @@ npm start
 
 第一版建议先使用私聊。`all` 只表示不要求 `@`，目前不会智能判断群内某句话是否适合插话，开启后可能回复得过于频繁。
 
-## 启动
+## 直接启动聊天进程
 
 ```powershell
-npm start
+npm run chat
 ```
 
-停止程序使用 `Ctrl+C`。近期上下文保存在 `state/recent-context.json`。
+一般不需要直接启动，建议通过控制台管理。近期上下文保存在 `state/recent-context.json`。
 
 ## 测试
 
@@ -71,6 +77,10 @@ npm run check
 - `src/chat-controller.js`：消息队列和聊天主流程；
 - `src/message-batcher.js`：连续短消息合并和最长等待控制；
 - `src/recent-context-store.js`：有限近期上下文；
+- `src/control-center.js`：本地控制台 API 与访问控制；
+- `src/chat-process-manager.js`：聊天子进程启停与日志；
+- `src/settings-store.js`：配置校验、密钥保护和原子保存；
+- `public/`：本地控制台前端；
 - `docs/DEVELOPMENT.md`：范围、架构和验收标准。
 
 ## 安全与风险

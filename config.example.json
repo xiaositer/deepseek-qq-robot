@@ -29,6 +29,10 @@
     "perMinuteLimit": 8,
     "globalPerMinuteLimit": 30
   },
+  "console": {
+    "port": 3100,
+    "autoStartChat": false
+  },
   "personaPath": "persona/fixed.md",
   "statePath": "state/recent-context.json"
 }
