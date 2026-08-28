@@ -1,0 +1,30 @@
+{
+  "onebot": {
+    "wsUrl": "ws://127.0.0.1:3001",
+    "accessToken": ""
+  },
+  "deepseek": {
+    "baseUrl": "https://api.deepseek.com",
+    "model": "deepseek-v4-flash",
+    "timeoutMs": 45000,
+    "maxRetries": 2,
+    "maxTokens": 600
+  },
+  "allow": {
+    "private": [
+      "123456789"
+    ],
+    "groups": []
+  },
+  "chat": {
+    "groupReplyMode": "off",
+    "contextMessages": 24,
+    "maxReplyChars": 500,
+    "maxReplyParts": 3,
+    "sendGapMs": 700,
+    "perMinuteLimit": 8,
+    "globalPerMinuteLimit": 30
+  },
+  "personaPath": "persona/fixed.md",
+  "statePath": "state/recent-context.json"
+}
