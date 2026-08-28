@@ -94,7 +94,7 @@ export function mergeAndValidateSettings(current, submitted, secrets = {}) {
     chat: {
       ...(current.chat ?? {}),
       groupReplyMode,
-      naturalReviewEveryMessages: integer(chat.naturalReviewEveryMessages ?? 4, 'chat.naturalReviewEveryMessages', { min: 1, max: 100 }),
+      naturalReviewEveryMessages: integer(chat.naturalReviewEveryMessages ?? 1, 'chat.naturalReviewEveryMessages', { min: 1, max: 100 }),
       naturalReviewOpenQuestions: chat.naturalReviewOpenQuestions !== false,
       groupInputDebounceMs: integer(chat.groupInputDebounceMs ?? 8_000, 'chat.groupInputDebounceMs', { min: 500, max: 60_000 }),
       groupMaxInputWaitMs: integer(chat.groupMaxInputWaitMs ?? 20_000, 'chat.groupMaxInputWaitMs', { min: 1_000, max: 120_000 }),

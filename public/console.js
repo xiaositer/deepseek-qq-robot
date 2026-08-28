@@ -55,7 +55,7 @@ function fillSettings(payload) {
   $('privateAllow').value = (config.allow.private ?? []).join('\n');
   $('groupAllow').value = (config.allow.groups ?? []).join('\n');
   $('groupReplyMode').value = config.chat.groupReplyMode ?? 'off';
-  $('naturalReviewEvery').value = config.chat.naturalReviewEveryMessages ?? 4;
+  $('naturalReviewEvery').value = config.chat.naturalReviewEveryMessages ?? 1;
   $('naturalReviewOpenQuestions').checked = config.chat.naturalReviewOpenQuestions !== false;
   $('groupInputDebounce').value = config.chat.groupInputDebounceMs ?? 8000;
   $('groupMaxInputWait').value = config.chat.groupMaxInputWaitMs ?? 20000;

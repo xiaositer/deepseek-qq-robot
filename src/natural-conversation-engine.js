@@ -52,7 +52,11 @@ export class NaturalConversationEngine {
     let reason = directReason;
     if (!reason && state.phase !== 'sleeping') reason = `当前处于 ${state.phase} 状态，需要继续观察这个话题`;
     if (!reason && this.#reviewOpenQuestions && OPEN_QUESTION_PATTERN.test(message.content)) reason = '群里出现开放问题，值得查看但不代表必须回复';
-    if (!reason && state.unreviewedMessages >= this.#reviewEveryMessages) reason = `已积累 ${state.unreviewedMessages} 条未审阅消息，进行一次语义查看`;
+    if (!reason && state.unreviewedMessages >= this.#reviewEveryMessages) {
+      reason = this.#reviewEveryMessages === 1
+        ? '新的群聊话轮，像普通群成员一样看看是否有自然参与点'
+        : `已积累 ${state.unreviewedMessages} 条未审阅消息，进行一次语义查看`;
+    }
     return { review: Boolean(reason), reason: reason || '消息已进入收件箱，继续旁听', state: this.snapshot(message.conversationId) };
   }
 

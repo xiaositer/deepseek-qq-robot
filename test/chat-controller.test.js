@@ -6,6 +6,7 @@ import path from 'node:path';
 import { ChatController, splitReply } from '../src/chat-controller.js';
 import { RecentContextStore } from '../src/recent-context-store.js';
 import { SafetyGuard } from '../src/safety-guard.js';
+import { NaturalConversationEngine } from '../src/natural-conversation-engine.js';
 
 test('splits a reply into bounded QQ messages', () => {
   assert.deepEqual(splitReply('一\n\n二\n三\n四', { maxReplyChars: 10, maxReplyParts: 3 }), ['一', '二', '三']);
@@ -130,6 +131,36 @@ test('observes passive natural group messages without calling the model', async 
   await controller.handle({ id: 'ambient', kind: 'group', targetId: '1', conversationId: 'group:1', senderId: '10', senderName: '甲', content: '天气不错' });
   assert.equal(modelCalled, false);
   assert.deepEqual(store.get('group:1').map((item) => item.content), ['甲：天气不错']);
+});
+
+test('semantically reviews an ordinary unmentioned group turn when review interval is one', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'qq-chat-'));
+  const store = new RecentContextStore({ filePath: path.join(directory, 'context.json'), maxMessages: 10 });
+  await store.init();
+  const sent = [];
+  let systemPrompt = '';
+  const naturalConversation = new NaturalConversationEngine({ reviewEveryMessages: 1, reviewOpenQuestions: true });
+  const controller = new ChatController({
+    qq: { sendText: async (...args) => { sent.push(args); return { message_id: '1' }; } },
+    deepseek: { chat: async (messages) => {
+      systemPrompt = messages[0].content;
+      return { content: '{"action":"send","messages":["我也觉得，这个挺有意思的"]}' };
+    } },
+    persona: 'x', store,
+    safety: new SafetyGuard({ allow: { private: [], groups: ['1'] }, perMinuteLimit: 5, globalPerMinuteLimit: 5 }),
+    naturalConversation,
+    config: { groupReplyMode: 'natural', maxReplyChars: 100, maxReplyParts: 3, sendGapMs: 1 },
+    logger: { info() {}, warn() {}, error() {} }
+  });
+  await controller.handle({
+    id: 'ambient-review', kind: 'group', targetId: '1', conversationId: 'group:1',
+    senderId: '10', senderName: '甲', selfId: '99', content: '这个新功能还挺有意思的',
+    mentionedSelf: false, mentionedUserIds: []
+  });
+  assert.deepEqual(sent, [['group', '1', '我也觉得，这个挺有意思的']]);
+  assert.match(systemPrompt, /新的群聊话轮/);
+  assert.match(systemPrompt, /不是“只有被 @ 才工作”的机器人/);
+  assert.match(systemPrompt, /没有明确 @ 或引用对象/);
 });
 
 test('executes a structured natural send action', async () => {

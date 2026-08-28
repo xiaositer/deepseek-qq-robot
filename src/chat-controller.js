@@ -10,7 +10,9 @@ const NATURAL_ACTION_RULES = `你正在进行 QQ 群聊中的一次自主观察�
 - wait：对方可能没说完，或你明确在等当前的人继续说；本轮不发送。
 - stay：本轮不说，但仍参与/观察当前话题；下一批消息到达时继续判断。
 - read：看过但不参与，退回普通旁听；本轮不发送。
-不要因为被唤醒就硬说话。别人正在互相交流、引用对象不是你、只会复述附和、话题已经翻篇时优先 read 或 stay。被明确点名也可以 wait，但通常应正常接话。`;
+你是群成员，不是“只有被 @ 才工作”的机器人。没人点名时，只要能自然接梗、表达态度、补充相关信息、关心正在说话的人，或这个话题符合你的人设，就可以 send；一句简短的真实反应也可以有价值，不要求每次都提供知识。
+如果最近有两条以上消息围绕同一话题、且没有明确只对某个人说，应把它视为开放群聊：只要你能接上一句，优先 send 一条自然短句，不要一上来就划走。read 只用于你确实无话可说、话题与你完全无关、对方已经明确结束，或这是明显只属于其他人的对话。
+同时不要抢话：消息明显没说完时 wait；正在进行只针对其他人的问答、引用/@对象明确不是你、你的话会打断别人时 stay 或 read。不要因为“没人叫你”就自动 read，也不要因为“模型被调用了”就硬说话。被明确点名通常应正常接话。`;
 
 export function splitReply(content, { maxReplyChars, maxReplyParts }) {
   const cleaned = String(content ?? '')
@@ -135,8 +137,18 @@ export class ChatController {
     }
     const history = this.#store.get(message.conversationId).map(({ role, content }) => ({ role, content }));
     const naturalMode = message.kind === 'group' && this.#config.groupReplyMode === 'natural';
+    const mentionedOthers = (message.mentionedUserIds ?? []).filter((id) => String(id) !== String(message.selfId ?? ''));
+    const addressingHint = message.mentionedSelf
+      ? '本轮明确 @ 了你'
+      : mentionedOthers.length
+        ? `本轮明确 @ 了其他群友（${mentionedOthers.join(', ')}），不是在 @ 你`
+        : message.replyMessageId
+          ? participationReason.includes('引用回复了你')
+            ? '本轮引用回复的是你之前发送的消息'
+            : '本轮引用了其他消息，当前没有证据表明引用对象是你'
+          : '本轮没有明确 @ 或引用对象';
     const decisionHint = naturalMode
-      ? `${NATURAL_ACTION_RULES}\n本轮唤醒原因：${participationReason}\n本轮最后发言者：${message.senderName || message.senderId}（ID ${message.senderId}）\n当前内部状态：${JSON.stringify(this.#naturalConversation?.snapshot(message.conversationId) ?? {})}`
+      ? `${NATURAL_ACTION_RULES}\n本轮观察原因：${participationReason}\n对话指向：${addressingHint}\n本轮最后发言者：${message.senderName || message.senderId}（ID ${message.senderId}）\n当前内部状态：${JSON.stringify(this.#naturalConversation?.snapshot(message.conversationId) ?? {})}`
       : message.kind === 'group'
         ? `本轮进入回复候选的原因：${participationReason}。这只是候选，不代表必须说话；仍应根据群聊语境决定回复或 [SILENT]。`
       : '私聊通常正常回应；只有自然收尾、没有继续交流意图时才使用 [SILENT]。';

@@ -13,6 +13,7 @@ function mergeMessages(messages) {
     content: messages.map((message) => message.content.trim()).filter(Boolean).join('\n'),
     timestamp: last.timestamp,
     mentionedSelf: messages.some((message) => message.mentionedSelf),
+    mentionedUserIds: [...new Set(messages.flatMap((message) => message.mentionedUserIds ?? []).map(String))],
     batchSize: messages.length
   };
 }

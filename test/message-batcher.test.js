@@ -21,10 +21,13 @@ test('recognizes short unfinished fragments', () => {
 });
 
 test('merges consecutive message fragments into one turn', () => {
-  const merged = mergeMessages([message('1', '你现在'), message('2', '在干什么')]);
+  const first = { ...message('1', '你现在'), mentionedUserIds: ['20'] };
+  const second = { ...message('2', '在干什么'), mentionedUserIds: ['30', '20'] };
+  const merged = mergeMessages([first, second]);
   assert.equal(merged.content, '你现在\n在干什么');
   assert.equal(merged.batchSize, 2);
   assert.equal(merged.timestamp, 2);
+  assert.deepEqual(merged.mentionedUserIds, ['20', '30']);
 });
 
 test('waits for quiet time and emits only one merged batch', async () => {
