@@ -50,6 +50,34 @@ test('detects a group mention of self', () => {
   assert.deepEqual(message.mentionedUserIds, ['200']);
 });
 
+test('keeps a mention-only group message instead of dropping it as empty', () => {
+  const message = normalizeOneBotMessage({
+    post_type: 'message',
+    message_type: 'group',
+    message_id: 99,
+    group_id: 100950944,
+    user_id: 1516453033,
+    self_id: 2405910558,
+    sender: { card: '。。。。' },
+    message: [{ type: 'at', data: { qq: '2405910558' } }]
+  });
+
+  assert.equal(message.mentionedSelf, true);
+  assert.equal(message.content, '（只@了你，没有附带文字）');
+  assert.deepEqual(message.mentionedUserIds, ['2405910558']);
+});
+
+test('still ignores a truly empty message without a self mention', () => {
+  assert.equal(normalizeOneBotMessage({
+    post_type: 'message',
+    message_type: 'group',
+    group_id: 1,
+    user_id: 2,
+    self_id: 3,
+    message: []
+  }), null);
+});
+
 test('captures mentions of other group members for addressing context', () => {
   const message = normalizeOneBotMessage({
     post_type: 'message', message_type: 'group', message_id: 15,

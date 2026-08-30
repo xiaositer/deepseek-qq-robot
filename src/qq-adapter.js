@@ -27,8 +27,6 @@ export function normalizeOneBotMessage(event) {
   if (!['private', 'group'].includes(kind)) return null;
   const targetId = kind === 'private' ? event.user_id : event.group_id;
   if (targetId === undefined || targetId === null) return null;
-  const content = extractText(event);
-  if (!content) return null;
   const selfId = event.self_id === undefined ? null : String(event.self_id);
   const senderId = String(event.user_id ?? event.sender?.user_id ?? '');
   const mentionedSelf = Array.isArray(event.message) && selfId
@@ -42,6 +40,8 @@ export function normalizeOneBotMessage(event) {
   const replySegment = Array.isArray(event.message)
     ? event.message.find((segment) => segment?.type === 'reply')
     : null;
+  const content = extractText(event);
+  if (!content && !mentionedSelf) return null;
   return {
     id: String(event.message_id ?? randomUUID()),
     kind,
@@ -50,7 +50,7 @@ export function normalizeOneBotMessage(event) {
     senderId,
     senderName: String(event.sender?.card || event.sender?.nickname || '').trim(),
     selfId,
-    content,
+    content: content || '（只@了你，没有附带文字）',
     mentionedSelf,
     mentionedUserIds,
     replyMessageId: replySegment?.data?.id === undefined ? null : String(replySegment.data.id),
