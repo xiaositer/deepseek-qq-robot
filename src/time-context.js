@@ -52,4 +52,10 @@ export function currentTimeContext(now = Date.now(), { timeZone = DEFAULT_TIME_Z
   return `当前时间：${formatChatTime(now, { timeZone })}（时区 ${timeZone}）`;
 }
 
+export function stripInternalTimeMetadata(value) {
+  return String(value ?? '')
+    .replace(/^[ \t]*[\[【]消息时间[：:][^\]\r\n】]*[\]】][ \t]*(?:\r?\n)?/gim, '')
+    .trim();
+}
+
 export { DEFAULT_TIME_ZONE, LONG_GAP_MS };

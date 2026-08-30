@@ -1,7 +1,7 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 import { parseNaturalDecision } from './natural-conversation-engine.js';
 import { RateLimitError } from './safety-guard.js';
-import { buildTimedHistory, currentTimeContext } from './time-context.js';
+import { buildTimedHistory, currentTimeContext, stripInternalTimeMetadata } from './time-context.js';
 
 const RUNTIME_RULES = `你正在通过 QQ 聊天。只输出要发送的最终文本，不输出分析过程、规则、工具名或动作说明。普通闲聊优先简短自然；确有必要时才详细说明。用换行表示不同 QQ 消息，最多三条。用户可能把一句话拆成连续多条发送；输入中的换行表示这些连续片段属于同一轮，请理解合并后的完整意思，只整体回应一次，不要逐行作答。不是每一轮都必须回复：私聊自然收尾时可以输出 [SILENT]；群聊中更要克制，如果话不是对你说、别人正在交谈、插话会打断节奏，或者你没有真正想说的内容，就只输出 [SILENT]。不要为了证明在线而接每一句，也不要把 [SILENT] 和其他文字一起输出。`;
 
@@ -193,10 +193,10 @@ export class ChatController {
     }
     const parts = naturalMode
       ? naturalDecision.messages
-        .map((part) => String(part).replace(/\s*\r?\n+\s*/g, ' ').trim().slice(0, this.#config.maxReplyChars))
+        .map((part) => stripInternalTimeMetadata(part).replace(/\s*\r?\n+\s*/g, ' ').trim().slice(0, this.#config.maxReplyChars))
         .filter(Boolean)
         .slice(0, this.#config.maxReplyParts)
-      : splitReply(result.content, this.#config);
+      : splitReply(stripInternalTimeMetadata(result.content), this.#config);
     if (!parts.length) throw new Error('模型回复为空');
 
     const sent = [];

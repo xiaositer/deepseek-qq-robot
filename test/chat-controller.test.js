@@ -23,7 +23,7 @@ test('runs the minimal private chat flow and saves context', async () => {
   const deepseek = {
     chat: async (messages) => {
       modelMessages = messages;
-      return { content: '在\n干嘛' };
+      return { content: '[消息时间：2026-08-30 周日 15:03:49]\n在\n干嘛' };
     }
   };
   const safety = new SafetyGuard({
@@ -183,7 +183,7 @@ test('executes a structured natural send action', async () => {
     deepseek: { chat: async (messages, options) => {
       modelMessages = messages;
       modelOptions = options;
-      return { content: '{"action":"send","messages":["在的","咋了"],"topic":"测试"}' };
+      return { content: '{"action":"send","messages":["[消息时间：2026-08-30 周日 15:03:49]\\n在的","咋了"],"topic":"测试"}' };
     } },
     persona: 'x', store,
     safety: new SafetyGuard({ allow: { private: [], groups: ['1'] }, perMinuteLimit: 5, globalPerMinuteLimit: 5 }),

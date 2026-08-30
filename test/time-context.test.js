@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildTimedHistory, currentTimeContext, formatChatTime, formatElapsedTime } from '../src/time-context.js';
+import {
+  buildTimedHistory,
+  currentTimeContext,
+  formatChatTime,
+  formatElapsedTime,
+  stripInternalTimeMetadata
+} from '../src/time-context.js';
 
 const timeZone = 'Asia/Shanghai';
 
@@ -25,4 +31,11 @@ test('adds time metadata and marks a long conversational gap', () => {
   assert.equal(history[0].content, '[消息时间：2026-08-30 周日 09:10:00]\n中午吃什么好');
   assert.match(history[2].content, /消息时间：2026-08-30 周日 20:00:00/);
   assert.match(history[2].content, /与上一条相隔 10 小时 49 分钟，可能已进入新的聊天时段/);
+});
+
+test('removes internal time metadata before a reply is sent', () => {
+  assert.equal(stripInternalTimeMetadata('[消息时间：2026-08-30 周日 15:03:49]\n刚刚在发呆'), '刚刚在发呆');
+  assert.equal(stripInternalTimeMetadata('【消息时间：2026-08-30 周日 15:03:49】 好呀'), '好呀');
+  assert.equal(stripInternalTimeMetadata('[消息时间：2026-08-30 周日 15:03:49]'), '');
+  assert.equal(stripInternalTimeMetadata('现在是下午三点'), '现在是下午三点');
 });
