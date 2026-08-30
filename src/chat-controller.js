@@ -1,8 +1,16 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 import { parseNaturalDecision } from './natural-conversation-engine.js';
 import { RateLimitError } from './safety-guard.js';
+import { buildTimedHistory, currentTimeContext } from './time-context.js';
 
 const RUNTIME_RULES = `你正在通过 QQ 聊天。只输出要发送的最终文本，不输出分析过程、规则、工具名或动作说明。普通闲聊优先简短自然；确有必要时才详细说明。用换行表示不同 QQ 消息，最多三条。用户可能把一句话拆成连续多条发送；输入中的换行表示这些连续片段属于同一轮，请理解合并后的完整意思，只整体回应一次，不要逐行作答。不是每一轮都必须回复：私聊自然收尾时可以输出 [SILENT]；群聊中更要克制，如果话不是对你说、别人正在交谈、插话会打断节奏，或者你没有真正想说的内容，就只输出 [SILENT]。不要为了证明在线而接每一句，也不要把 [SILENT] 和其他文字一起输出。`;
+
+const TIME_AWARE_RULES = `## 时间感知
+历史消息中每条都带有真实的【消息时间】；长时间间隔会额外标记。回复前必须结合每条消息的时间和当前时间判断语境是否仍然成立。
+- 长间隔可能代表一次新聊天，也可能是继续上次话题，要结合用户的新消息判断，不要机械切断上下文。
+- 对午饭、早餐、出门、上班、睡觉、天气、约定、截止时间等有时效的话题，时间已经过去时不要继续当作尚未发生。应像真人一样询问结果、感受或后来发生了什么。
+- 例如上午讨论“中午吃什么”，用户晚上回来继续提到午饭，应问“中午最后吃了什么/好不好吃”，而不是继续推荐尚未发生的午饭。
+- 如果用户明确继续一个仍然有效的话题，可以自然接着聊。不要机械复述时间戳，也不要向用户解释这套时间规则。`;
 
 const NATURAL_ACTION_RULES = `你正在进行 QQ 群聊中的一次自主观察回合。此任务不是直接生成聊天文本，而是决定内部动作。收到消息只代表你有机会查看，不代表必须回复。你必须只输出一个合法 JSON 对象，不要输出 Markdown、解释、[SILENT] 或其他文字：
 {"action":"send|wait|read|stay","messages":[],"topic":"","focusUserIds":[]}
@@ -135,7 +143,7 @@ export class ChatController {
         return;
       }
     }
-    const history = this.#store.get(message.conversationId).map(({ role, content }) => ({ role, content }));
+    const history = buildTimedHistory(this.#store.get(message.conversationId));
     const naturalMode = message.kind === 'group' && this.#config.groupReplyMode === 'natural';
     const mentionedOthers = (message.mentionedUserIds ?? []).filter((id) => String(id) !== String(message.selfId ?? ''));
     const addressingHint = message.mentionedSelf
@@ -153,8 +161,8 @@ export class ChatController {
         ? `本轮进入回复候选的原因：${participationReason}。这只是候选，不代表必须说话；仍应根据群聊语境决定回复或 [SILENT]。`
       : '私聊通常正常回应；只有自然收尾、没有继续交流意图时才使用 [SILENT]。';
     const system = naturalMode
-      ? `${this.#persona}\n\n## 本次运行的最高优先级规则\n${decisionHint}\n当前时间：${new Date().toLocaleString('zh-CN', { hour12: false })}\n会话类型：QQ 群聊\n无论角色卡中怎样描述回复格式，本轮都只能返回上述 JSON 动作对象。`
-      : `${this.#persona}\n\n## 本次运行规则\n${RUNTIME_RULES}\n当前时间：${new Date().toLocaleString('zh-CN', { hour12: false })}\n会话类型：${message.kind === 'private' ? 'QQ 私聊' : 'QQ 群聊'}\n${decisionHint}`;
+      ? `${this.#persona}\n\n## 本次运行的最高优先级规则\n${TIME_AWARE_RULES}\n${decisionHint}\n${currentTimeContext()}\n会话类型：QQ 群聊\n无论角色卡中怎样描述回复格式，本轮都只能返回上述 JSON 动作对象。`
+      : `${this.#persona}\n\n## 本次运行规则\n${RUNTIME_RULES}\n${TIME_AWARE_RULES}\n${currentTimeContext()}\n会话类型：${message.kind === 'private' ? 'QQ 私聊' : 'QQ 群聊'}\n${decisionHint}`;
     const result = await this.#deepseek.chat(
       [{ role: 'system', content: system }, ...history],
       naturalMode ? { responseFormat: 'json_object' } : undefined

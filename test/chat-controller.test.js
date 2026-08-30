@@ -55,7 +55,9 @@ test('runs the minimal private chat flow and saves context', async () => {
 
   assert.deepEqual(sent, [['private', '100', '在'], ['private', '100', '干嘛']]);
   assert.match(modelMessages[0].content, /小鲸鱼/);
-  assert.equal(modelMessages.at(-1).content, '小明：在吗');
+  assert.match(modelMessages[0].content, /历史消息中每条都带有真实的【消息时间】/);
+  assert.match(modelMessages[0].content, /当前时间：\d{4}-\d{2}-\d{2} 周./);
+  assert.match(modelMessages.at(-1).content, /^\[消息时间：.+\]\n小明：在吗$/);
   assert.deepEqual(store.get('private:100').map((item) => item.role), ['user', 'assistant']);
 });
 
@@ -248,5 +250,6 @@ test('merges messages received during rate-limit cooldown and replies once later
   await controller.flush();
   assert.equal(modelCalls.length, 1);
   assert.deepEqual(sent, [['private', '1', '合并回复']]);
-  assert.deepEqual(modelCalls[0].slice(-2).map((item) => item.content), ['第一段', '第二段']);
+  assert.equal(modelCalls[0].at(-2).content.endsWith('\n第一段'), true);
+  assert.equal(modelCalls[0].at(-1).content.endsWith('\n第二段'), true);
 });

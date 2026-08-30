@@ -7,7 +7,8 @@ function cleanMessage(message) {
   if (!['user', 'assistant'].includes(role) || !content) {
     throw new Error('上下文消息必须包含有效的 role 和 content');
   }
-  return { role, content, timestamp: Number(message.timestamp ?? Date.now()) };
+  const timestamp = Number(message.timestamp ?? Date.now());
+  return { role, content, timestamp: Number.isFinite(timestamp) && timestamp > 0 ? timestamp : Date.now() };
 }
 
 export class RecentContextStore {

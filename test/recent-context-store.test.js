@@ -22,3 +22,15 @@ test('isolates conversations, trims history, and restores it', async () => {
   await restored.init();
   assert.deepEqual(restored.get('private:1').map((item) => item.content), ['two', 'three']);
 });
+
+test('persists a finite local timestamp for every message', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'qq-context-'));
+  const store = new RecentContextStore({ filePath: path.join(directory, 'context.json') });
+  await store.init();
+  await store.append('private:1', { role: 'user', content: '有明确时间', timestamp: 123456 });
+  await store.append('private:1', { role: 'assistant', content: '无效时间会修正', timestamp: Number.NaN });
+  const items = store.get('private:1');
+  assert.equal(items[0].timestamp, 123456);
+  assert.equal(Number.isFinite(items[1].timestamp), true);
+  assert.equal(items[1].timestamp > 0, true);
+});
