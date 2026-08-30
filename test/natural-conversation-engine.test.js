@@ -19,6 +19,24 @@ test('parses natural action JSON and fails closed', () => {
   assert.equal(parseNaturalDecision('{"action":"unknown"}').invalid, true);
 });
 
+test('repairs an otherwise valid send action containing an unescaped quote', () => {
+  const decision = parseNaturalDecision('{"action":"send","messages":["你@"我干嘛，我哪知道这整合包","要不去问问d指导的脑子"],"topic":"","focusUserIds":[]}');
+  assert.deepEqual(decision, {
+    action: 'send',
+    messages: ['你@"我干嘛，我哪知道这整合包', '要不去问问d指导的脑子'],
+    topic: '',
+    focusUserIds: [],
+    invalid: false,
+    repaired: true
+  });
+});
+
+test('does not repair malformed or unknown natural actions', () => {
+  assert.equal(parseNaturalDecision('{"action":"send","messages":not-an-array}').action, 'read');
+  assert.equal(parseNaturalDecision('{"action":"delete","messages":["不要发送"]}').action, 'read');
+  assert.equal(parseNaturalDecision('{"action":"send","messages":[]}').action, 'read');
+});
+
 test('collects ordinary messages into an inbox before semantic review', () => {
   const engine = new NaturalConversationEngine({ reviewEveryMessages: 3, reviewOpenQuestions: false });
   assert.equal(engine.observe(message()).review, false);

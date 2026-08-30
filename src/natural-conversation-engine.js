@@ -2,35 +2,86 @@ const DIRECT_NAME_PATTERN = /(?:小鲸鱼|鲸鱼|D指导|deepseek)/i;
 const OPEN_QUESTION_PATTERN = /[?？]|(?:谁|有没有人|你们|大家).{0,12}(?:知道|觉得|推荐|来|说|看)/i;
 const ACTIONS = new Set(['send', 'wait', 'read', 'stay']);
 
+function normalizeDecision(value, extra = {}) {
+  const requestedAction = String(value.action ?? '').toLowerCase();
+  const action = ACTIONS.has(requestedAction) ? requestedAction : 'read';
+  const messages = Array.isArray(value.messages)
+    ? value.messages.map((item) => String(item).trim()).filter(Boolean).slice(0, 4)
+    : [value.messages, value.message, value.reply, value.content]
+      .find((item) => typeof item === 'string' && item.trim())
+      ?.split(/\r?\n+/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .slice(0, 4) ?? [];
+  const invalid = !ACTIONS.has(requestedAction) || (action === 'send' && !messages.length);
+  return {
+    action: action === 'send' && !messages.length ? 'read' : action,
+    messages,
+    topic: String(value.topic ?? '').trim().slice(0, 120),
+    focusUserIds: Array.isArray(value.focusUserIds)
+      ? [...new Set(value.focusUserIds.map(String).filter(Boolean))].slice(0, 10)
+      : [],
+    invalid,
+    ...extra
+  };
+}
+
+function decodeLooseString(value) {
+  try {
+    return JSON.parse(`"${value}"`);
+  } catch {
+    return value
+      .replace(/\\n/g, '\n')
+      .replace(/\\r/g, '\r')
+      .replace(/\\t/g, '\t')
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, '\\');
+  }
+}
+
+function parseLooseDecision(raw) {
+  const action = raw.match(/"action"\s*:\s*"(send|wait|read|stay)"/i)?.[1]?.toLowerCase();
+  if (!action) return null;
+
+  const body = raw.match(/"messages"\s*:\s*\[([\s\S]*?)\]\s*(?=,\s*"(?:topic|focusUserIds)"\s*:|\s*})/)?.[1]?.trim();
+  if (body === undefined) return null;
+  let messages = [];
+  if (body) {
+    if (!body.startsWith('"') || !body.endsWith('"')) return null;
+    messages = body.slice(1, -1).split(/"\s*,\s*"/).map(decodeLooseString);
+  }
+
+  const topicMatch = raw.match(/"topic"\s*:\s*"((?:\\.|[^"\\])*)"/);
+  const focusMatch = raw.match(/"focusUserIds"\s*:\s*(\[[^\]]*\])/);
+  let focusUserIds = [];
+  if (focusMatch) {
+    try {
+      const parsed = JSON.parse(focusMatch[1]);
+      if (Array.isArray(parsed)) focusUserIds = parsed;
+    } catch {
+      return null;
+    }
+  }
+  return {
+    action,
+    messages,
+    topic: topicMatch ? decodeLooseString(topicMatch[1]) : '',
+    focusUserIds
+  };
+}
+
 export function parseNaturalDecision(content) {
   const raw = String(content ?? '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
   const start = raw.indexOf('{');
   const end = raw.lastIndexOf('}');
   if (start < 0 || end <= start) return { action: 'read', messages: [], invalid: true };
   try {
-    const value = JSON.parse(raw.slice(start, end + 1));
-    const requestedAction = String(value.action ?? '').toLowerCase();
-    const action = ACTIONS.has(requestedAction) ? requestedAction : 'read';
-    const messages = Array.isArray(value.messages)
-      ? value.messages.map((item) => String(item).trim()).filter(Boolean).slice(0, 4)
-      : [value.messages, value.message, value.reply, value.content]
-        .find((item) => typeof item === 'string' && item.trim())
-        ?.split(/\r?\n+/)
-        .map((item) => item.trim())
-        .filter(Boolean)
-        .slice(0, 4) ?? [];
-    const invalid = !ACTIONS.has(requestedAction) || (action === 'send' && !messages.length);
-    return {
-      action: action === 'send' && !messages.length ? 'read' : action,
-      messages,
-      topic: String(value.topic ?? '').trim().slice(0, 120),
-      focusUserIds: Array.isArray(value.focusUserIds)
-        ? [...new Set(value.focusUserIds.map(String).filter(Boolean))].slice(0, 10)
-        : [],
-      invalid
-    };
+    return normalizeDecision(JSON.parse(raw.slice(start, end + 1)));
   } catch {
-    return { action: 'read', messages: [], invalid: true };
+    const repaired = parseLooseDecision(raw.slice(start, end + 1));
+    return repaired
+      ? normalizeDecision(repaired, { repaired: true })
+      : { action: 'read', messages: [], invalid: true };
   }
 }
 

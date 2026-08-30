@@ -184,6 +184,8 @@ export class ChatController {
       if (naturalDecision.invalid) {
         const preview = String(result.content).replace(/\s+/g, ' ').slice(0, 240);
         this.#logger.warn?.(`[chat] ${message.conversationId} 自然动作格式无效，安全转为已读；模型输出：${preview}`);
+      } else if (naturalDecision.repaired) {
+        this.#logger.warn?.(`[chat] ${message.conversationId} 自然动作 JSON 含未转义字符，已自动修复`);
       }
       if (naturalDecision.action !== 'send') {
         this.#naturalConversation?.applyDecision(message, naturalDecision);
