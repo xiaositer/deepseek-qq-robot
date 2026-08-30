@@ -200,6 +200,50 @@ test('executes a structured natural send action', async () => {
   assert.doesNotMatch(modelMessages[0].content, /只输出要发送的最终文本/);
 });
 
+test('reformats a plain-text natural reply as JSON before sending it', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'qq-chat-'));
+  const store = new RecentContextStore({ filePath: path.join(directory, 'context.json'), maxMessages: 10 });
+  await store.init();
+  const sent = [];
+  const modelCalls = [];
+  const warnings = [];
+  const naturalConversation = {
+    observe: () => ({ review: true, reason: '当前关注的群友继续发言' }),
+    snapshot: () => ({ phase: 'observing' }),
+    applyDecision() {}
+  };
+  const controller = new ChatController({
+    qq: { sendText: async (...args) => sent.push(args) },
+    deepseek: { chat: async (messages, options) => {
+      modelCalls.push({ messages, options });
+      if (modelCalls.length === 1) {
+        return { content: '[消息时间：2026-08-30 周日 22:04:58]\n那你发111是啥意思\n行吧，我自作多情了' };
+      }
+      return { content: '{"action":"send","messages":["那你发111是啥意思","行吧，我自作多情了"],"topic":"111"}' };
+    } },
+    persona: 'x', store,
+    safety: new SafetyGuard({ allow: { private: [], groups: ['1'] }, perMinuteLimit: 5, globalPerMinuteLimit: 5 }),
+    naturalConversation,
+    config: { groupReplyMode: 'natural', maxReplyChars: 100, maxReplyParts: 3, sendGapMs: 1 },
+    logger: { info() {}, warn(message) { warnings.push(message); }, error() {} }
+  });
+
+  await controller.handle({
+    id: 'plain-natural', kind: 'group', targetId: '1', conversationId: 'group:1',
+    senderId: '10', senderName: '甲', selfId: '99', content: '你为什么觉得我在叫你'
+  });
+
+  assert.equal(modelCalls.length, 2);
+  assert.deepEqual(modelCalls[1].options, { responseFormat: 'json_object' });
+  assert.match(modelCalls[1].messages[0].content, /格式重整器/);
+  assert.match(modelCalls[1].messages[1].content, /那你发111是啥意思/);
+  assert.deepEqual(sent, [
+    ['group', '1', '那你发111是啥意思'],
+    ['group', '1', '行吧，我自作多情了']
+  ]);
+  assert.equal(warnings.some((message) => message.includes('二次 JSON 重整成功')), true);
+});
+
 test('cancels an unsent reply when a newer message arrives', async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'qq-chat-'));
   const store = new RecentContextStore({ filePath: path.join(directory, 'context.json'), maxMessages: 10 });
