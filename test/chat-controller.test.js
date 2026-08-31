@@ -24,6 +24,14 @@ test('formats resolved @ targets as explicit model context', () => {
   }), '【本条消息的 @ 对象：@happy（QQ 1667973966）】\n测试者：（只@了群友，没有附带文字）');
 });
 
+test('formats the resolved reply target as explicit model context', () => {
+  assert.equal(formatIncomingForContext({
+    senderName: 'ZOE', selfId: '99', content: '我想的是这样的',
+    mentionedUserIds: [],
+    replyTarget: { messageId: '77', senderId: '10', name: '小明', isSelf: false }
+  }), '【本条消息回复的是：小明（QQ 10） 的消息】\nZOE：我想的是这样的');
+});
+
 test('runs the minimal private chat flow and saves context', async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'qq-chat-'));
   const store = new RecentContextStore({ filePath: path.join(directory, 'context.json'), maxMessages: 10 });
@@ -175,6 +183,7 @@ test('semantically reviews an ordinary unmentioned group turn when review interv
   assert.match(systemPrompt, /不是“只有被 @ 才工作”的机器人/);
   assert.match(systemPrompt, /没有明确 @ 或引用对象/);
   assert.match(systemPrompt, /约定、计划或时间点在双方确认后/);
+  assert.match(systemPrompt, /群友在讨论机器人、模型或调试方案/);
 });
 
 test('passes another member mention name and id to model history and addressing rules', async () => {

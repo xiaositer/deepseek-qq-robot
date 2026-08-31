@@ -55,12 +55,55 @@ test('wake-up is an opportunity rather than a forced reply', () => {
   assert.equal(engine.snapshot('group:1').phase, 'sleeping');
 });
 
-test('keeps observing after a reply without a fixed cooldown', () => {
+test('allows one unaddressed follow-up after replying, then returns to sampling', () => {
   const engine = new NaturalConversationEngine({ reviewEveryMessages: 99 });
   const current = message({ mentionedSelf: true });
   engine.observe(current);
   engine.applyDecision(current, { action: 'send', messages: ['在'], focusUserIds: ['10'], topic: '当前话题' }, { messageIds: ['88'] });
   assert.equal(engine.snapshot('group:1').phase, 'observing');
   assert.equal(engine.observe(message({ senderId: '10', content: '然后呢' })).review, true);
+  assert.equal(engine.observe(message({ senderId: '10', content: '我跟别人继续聊' })).review, false);
   assert.equal(engine.observe(message({ senderId: '11', replyMessageId: '88' })).review, true);
+});
+
+test('hard-skips a focused speaker when they explicitly reply to someone else', () => {
+  const engine = new NaturalConversationEngine({ reviewEveryMessages: 1 });
+  const current = message({ mentionedSelf: true });
+  engine.observe(current);
+  engine.applyDecision(current, { action: 'send', messages: ['在'], focusUserIds: ['10'], topic: '当前话题' }, { messageIds: ['88'] });
+
+  const observation = engine.observe(message({
+    senderId: '10',
+    replyMessageId: '77',
+    replyTarget: { messageId: '77', senderId: '20', name: '群友乙', isSelf: false }
+  }));
+  assert.equal(observation.review, false);
+  assert.match(observation.reason, /其他群友/);
+  assert.equal(engine.snapshot('group:1').phase, 'sleeping');
+});
+
+test('ends implicit focus when another group member speaks in between', () => {
+  const engine = new NaturalConversationEngine({ reviewEveryMessages: 99, reviewOpenQuestions: false });
+  const current = message({ mentionedSelf: true });
+  engine.observe(current);
+  engine.applyDecision(current, { action: 'send', messages: ['在'], focusUserIds: ['10'], topic: '当前话题' });
+
+  assert.equal(engine.observe(message({ senderId: '20', content: '我插一句' })).review, false);
+  assert.equal(engine.observe(message({ senderId: '10', content: '是啊' })).review, false);
+  assert.equal(engine.snapshot('group:1').phase, 'sleeping');
+});
+
+test('hard-skips messages that @ another member but still handles resolved replies to self', () => {
+  const engine = new NaturalConversationEngine({ reviewEveryMessages: 1 });
+  const atOther = engine.observe(message({
+    mentionedUserIds: ['20'], selfId: '99', content: '你觉得呢'
+  }));
+  assert.equal(atOther.review, false);
+
+  const replySelf = engine.observe(message({
+    replyMessageId: 'old-bot-message',
+    replyTarget: { messageId: 'old-bot-message', senderId: '99', name: '小鲸鱼', isSelf: true }
+  }));
+  assert.equal(replySelf.review, true);
+  assert.match(replySelf.reason, /引用回复了你/);
 });

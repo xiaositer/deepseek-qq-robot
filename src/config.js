@@ -88,7 +88,7 @@ export async function loadConfig({ cwd = process.cwd(), env = process.env } = {}
     },
     chat: {
       groupReplyMode,
-      naturalReviewEveryMessages: asPositiveInteger(file.chat?.naturalReviewEveryMessages, 1, 'chat.naturalReviewEveryMessages'),
+      naturalReviewEveryMessages: asPositiveInteger(file.chat?.naturalReviewEveryMessages, 3, 'chat.naturalReviewEveryMessages'),
       naturalReviewOpenQuestions: file.chat?.naturalReviewOpenQuestions !== false,
       groupInputDebounceMs: asPositiveInteger(file.chat?.groupInputDebounceMs, 8_000, 'chat.groupInputDebounceMs'),
       groupMaxInputWaitMs: asPositiveInteger(file.chat?.groupMaxInputWaitMs, 20_000, 'chat.groupMaxInputWaitMs'),

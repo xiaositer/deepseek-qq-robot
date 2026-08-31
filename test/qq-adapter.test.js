@@ -4,7 +4,8 @@ import {
   extractMentionedUserIds,
   extractText,
   normalizeOneBotMessage,
-  resolveMentionedUsers
+  resolveMentionedUsers,
+  resolveReplyTarget
 } from '../src/qq-adapter.js';
 
 test('extracts only text segments', () => {
@@ -138,4 +139,17 @@ test('captures the replied message id', () => {
     ]
   });
   assert.equal(message.replyMessageId, '88');
+});
+
+test('resolves the sender of a replied message across process restarts', async () => {
+  const resolved = await resolveReplyTarget({
+    kind: 'group', targetId: '300', selfId: '200', replyMessageId: '88'
+  }, async (messageId) => {
+    assert.equal(messageId, '88');
+    return { sender: { user_id: 100, nickname: '群友甲' } };
+  }, async () => { throw new Error('not needed'); });
+
+  assert.deepEqual(resolved.replyTarget, {
+    messageId: '88', senderId: '100', name: '群友甲', isSelf: false
+  });
 });

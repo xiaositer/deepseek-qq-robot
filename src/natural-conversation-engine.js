@@ -100,8 +100,26 @@ export class NaturalConversationEngine {
     const state = this.#state(message.conversationId);
     state.unreviewedMessages += Math.max(1, Number(message.batchSize) || 1);
     const directReason = this.#directReason(message);
+    if (!directReason && state.focusUserIds.length && !state.focusUserIds.includes(String(message.senderId))) {
+      state.focusUserIds = [];
+      state.focusTurnsRemaining = 0;
+      state.phase = 'sleeping';
+      state.topic = '';
+    }
+    if (!directReason && this.#isAddressedElsewhere(message)) {
+      state.focusUserIds = state.focusUserIds.filter((id) => id !== String(message.senderId));
+      if (!state.focusUserIds.length) {
+        state.phase = 'sleeping';
+        state.topic = '';
+        state.focusTurnsRemaining = 0;
+      }
+      return {
+        review: false,
+        reason: '本条消息明确回复或 @ 了其他群友，程序直接旁听',
+        state: this.snapshot(message.conversationId)
+      };
+    }
     let reason = directReason;
-    if (!reason && state.phase !== 'sleeping') reason = `当前处于 ${state.phase} 状态，需要继续观察这个话题`;
     if (!reason && this.#reviewOpenQuestions && OPEN_QUESTION_PATTERN.test(message.content)) reason = '群里出现开放问题，值得查看但不代表必须回复';
     if (!reason && state.unreviewedMessages >= this.#reviewEveryMessages) {
       reason = this.#reviewEveryMessages === 1
@@ -121,6 +139,7 @@ export class NaturalConversationEngine {
     if (decision.action === 'send') {
       state.phase = 'observing';
       state.focusUserIds = decision.focusUserIds?.length ? decision.focusUserIds : [String(message.senderId)];
+      state.focusTurnsRemaining = 1;
       state.lastSpokeAt = now;
       const ids = this.#botMessageIds.get(message.conversationId) ?? new Set();
       for (const id of messageIds.map(String).filter(Boolean)) ids.add(id);
@@ -129,12 +148,15 @@ export class NaturalConversationEngine {
     } else if (decision.action === 'wait') {
       state.phase = 'waiting';
       if (!state.focusUserIds.length) state.focusUserIds = [String(message.senderId)];
+      state.focusTurnsRemaining = 2;
     } else if (decision.action === 'stay') {
       state.phase = 'observing';
+      state.focusTurnsRemaining = state.focusUserIds.length ? 1 : 0;
     } else {
       state.phase = 'sleeping';
       state.focusUserIds = [];
       state.topic = '';
+      state.focusTurnsRemaining = 0;
     }
     return this.snapshot(message.conversationId);
   }
@@ -146,25 +168,47 @@ export class NaturalConversationEngine {
       focusUserIds: [...state.focusUserIds],
       topic: state.topic,
       unreviewedMessages: state.unreviewedMessages,
-      lastSpokeAt: state.lastSpokeAt
+      lastSpokeAt: state.lastSpokeAt,
+      focusTurnsRemaining: state.focusTurnsRemaining
     };
   }
 
   #directReason(message) {
     if (message.mentionedSelf) return '对方明确 @ 了你';
+    if (message.replyTarget?.isSelf) return '对方引用回复了你发过的消息';
     if (message.replyMessageId && this.#botMessageIds.get(message.conversationId)?.has(String(message.replyMessageId))) {
       return '对方引用回复了你发过的消息';
     }
     if (DIRECT_NAME_PATTERN.test(message.content)) return '对方在文字中点了你的名字';
     const state = this.#state(message.conversationId);
-    if (state.focusUserIds.includes(String(message.senderId))) return '当前关注的群友继续发言';
+    if (
+      state.focusTurnsRemaining > 0
+      && state.focusUserIds.includes(String(message.senderId))
+      && !message.replyMessageId
+      && !(message.mentionedUserIds ?? []).some((id) => String(id) !== String(message.selfId ?? ''))
+    ) {
+      state.focusTurnsRemaining -= 1;
+      return '刚与你对话的群友继续说了一句，查看是否仍在接你的话';
+    }
     return '';
+  }
+
+  #isAddressedElsewhere(message) {
+    const mentionsOther = (message.mentionedUserIds ?? [])
+      .some((id) => String(id) !== String(message.selfId ?? ''));
+    if (mentionsOther && !message.mentionedSelf) return true;
+    if (message.replyTarget) return !message.replyTarget.isSelf;
+    if (!message.replyMessageId) return false;
+    return !this.#botMessageIds.get(message.conversationId)?.has(String(message.replyMessageId));
   }
 
   #state(conversationId) {
     let state = this.#states.get(conversationId);
     if (!state) {
-      state = { phase: 'sleeping', focusUserIds: [], topic: '', unreviewedMessages: 0, lastSpokeAt: 0, lastDecisionAt: 0 };
+      state = {
+        phase: 'sleeping', focusUserIds: [], focusTurnsRemaining: 0,
+        topic: '', unreviewedMessages: 0, lastSpokeAt: 0, lastDecisionAt: 0
+      };
       this.#states.set(conversationId, state);
     }
     return state;

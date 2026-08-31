@@ -19,7 +19,7 @@
   },
   "chat": {
     "groupReplyMode": "natural",
-    "naturalReviewEveryMessages": 1,
+    "naturalReviewEveryMessages": 3,
     "naturalReviewOpenQuestions": true,
     "groupInputDebounceMs": 8000,
     "groupMaxInputWaitMs": 20000,

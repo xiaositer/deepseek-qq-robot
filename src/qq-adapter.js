@@ -55,6 +55,35 @@ export async function resolveMentionedUsers(message, lookupMember) {
   return { ...message, mentionedUsers };
 }
 
+export async function resolveReplyTarget(message, lookupMessage, lookupMember) {
+  if (message?.kind !== 'group' || !message.replyMessageId) return message;
+  try {
+    const replied = await lookupMessage(String(message.replyMessageId));
+    const senderId = String(replied?.sender?.user_id ?? replied?.user_id ?? '');
+    if (!senderId) return message;
+    let name = String(replied?.sender?.card || replied?.sender?.nickname || '').trim();
+    if (!name && senderId !== String(message.selfId ?? '')) {
+      try {
+        const member = await lookupMember(String(message.targetId), senderId);
+        name = String(member?.card || member?.nickname || '').trim();
+      } catch {
+        // The sender id is still enough to route the reply safely.
+      }
+    }
+    return {
+      ...message,
+      replyTarget: {
+        messageId: String(message.replyMessageId),
+        senderId,
+        name: senderId === String(message.selfId ?? '') ? '小鲸鱼' : name,
+        isSelf: senderId === String(message.selfId ?? '')
+      }
+    };
+  } catch {
+    return message;
+  }
+}
+
 export function normalizeOneBotMessage(event) {
   if (event?.post_type !== 'message') return null;
   const kind = event.message_type;
@@ -86,6 +115,7 @@ export function normalizeOneBotMessage(event) {
     mentionedUserIds,
     mentionedUsers: mentionedUserIds.map((id) => ({ id, name: '', isSelf: id === selfId })),
     replyMessageId: replySegment?.data?.id === undefined ? null : String(replySegment.data.id),
+    replyTarget: null,
     timestamp: Number(event.time ? event.time * 1000 : Date.now()),
     raw: event
   };
@@ -193,8 +223,13 @@ export class QQAdapter extends EventEmitter {
       if (message) {
         this.#messageChain = this.#messageChain
           .then(async () => {
-            const enriched = await resolveMentionedUsers(
+            let enriched = await resolveMentionedUsers(
               message,
+              (groupId, userId) => this.#lookupGroupMember(groupId, userId)
+            );
+            enriched = await resolveReplyTarget(
+              enriched,
+              (messageId) => this.#lookupMessage(messageId),
               (groupId, userId) => this.#lookupGroupMember(groupId, userId)
             );
             this.emit('message', enriched);
@@ -217,6 +252,10 @@ export class QQAdapter extends EventEmitter {
     }, 5_000);
     this.#memberCache.set(key, { member, expiresAt: Date.now() + 30 * 60_000 });
     return member;
+  }
+
+  #lookupMessage(messageId) {
+    return this.callAction('get_msg', { message_id: Number(messageId) }, 5_000);
   }
 
   #scheduleReconnect() {

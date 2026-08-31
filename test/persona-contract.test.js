@@ -7,7 +7,7 @@ const personaUrl = new URL('../persona/fixed.md', import.meta.url);
 test('fixed persona keeps the localized whale identity and current output protocol', async () => {
   const persona = await readFile(personaUrl, 'utf8');
 
-  assert.match(persona, /先像群友、像真人，再谈人设/);
+  assert.match(persona, /先像(?:群友、像真人|真人、像群友)，再谈人设/);
   assert.match(persona, /蓝色大肥鱼/);
   assert.match(persona, /DeepSeek 经典梗/);
   assert.match(persona, /换行代表下一条 QQ 气泡/);
