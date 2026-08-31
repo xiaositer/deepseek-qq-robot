@@ -3,6 +3,7 @@ $ErrorActionPreference = 'Stop'
 $projectDir = 'D:\qq-persona-companion'
 $snowLumaDir = 'D:\SnowLuma'
 $snowLumaNode = Join-Path $snowLumaDir 'node.exe'
+$snowLumaWebUrl = 'http://127.0.0.1:5099/'
 $consoleUrl = 'http://127.0.0.1:3100/'
 
 function Wait-LocalPort {
@@ -23,10 +24,10 @@ function Wait-LocalPort {
 if (-not (Test-Path -LiteralPath $projectDir)) { throw "Project directory not found: $projectDir" }
 if (-not (Test-Path -LiteralPath $snowLumaNode)) { throw "SnowLuma executable not found: $snowLumaNode" }
 
-if (-not (Wait-LocalPort -Port 3001 -TimeoutSeconds 1)) {
+if (-not (Wait-LocalPort -Port 5099 -TimeoutSeconds 1)) {
   Write-Host 'Starting SnowLuma...'
   Start-Process -FilePath $snowLumaNode -ArgumentList 'index.mjs' -WorkingDirectory $snowLumaDir -WindowStyle Hidden
-  if (-not (Wait-LocalPort -Port 3001)) { throw 'SnowLuma startup timed out; OneBot WebSocket port 3001 was not detected.' }
+  if (-not (Wait-LocalPort -Port 5099)) { throw 'SnowLuma startup timed out; WebUI port 5099 was not detected.' }
 } else {
   Write-Host 'SnowLuma is already running.'
 }
@@ -37,6 +38,13 @@ if (-not (Wait-LocalPort -Port 3100 -TimeoutSeconds 1)) {
   if (-not (Wait-LocalPort -Port 3100)) { throw 'Console startup timed out; port 3100 was not detected.' }
 } else {
   Write-Host 'QQ Persona Companion console is already running.'
+}
+
+if (-not (Wait-LocalPort -Port 3001 -TimeoutSeconds 90)) {
+  Start-Process $snowLumaWebUrl
+  Start-Process $consoleUrl
+  Write-Warning 'SnowLuma WebUI is running, but QQ / OneBot is not ready on port 3001. Please log in or reconnect QQ in SnowLuma, then run this script again.'
+  exit 2
 }
 
 try {
