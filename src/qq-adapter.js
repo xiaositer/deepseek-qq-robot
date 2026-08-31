@@ -21,6 +21,40 @@ export function extractText(event) {
   return typeof event?.raw_message === 'string' ? event.raw_message.replace(/\[CQ:[^\]]+\]/g, '').trim() : '';
 }
 
+export function extractMentionedUserIds(event) {
+  if (Array.isArray(event?.message)) {
+    return [...new Set(event.message
+      .filter((segment) => segment?.type === 'at' && segment?.data?.qq !== undefined)
+      .map((segment) => String(segment.data.qq))
+      .filter(Boolean))];
+  }
+  const source = typeof event?.message === 'string'
+    ? event.message
+    : typeof event?.raw_message === 'string'
+      ? event.raw_message
+      : '';
+  return [...new Set([...source.matchAll(/\[CQ:at,([^\]]+)\]/gi)]
+    .map((match) => match[1].match(/(?:^|,)qq=([^,]+)/i)?.[1])
+    .filter(Boolean)
+    .map(String))];
+}
+
+export async function resolveMentionedUsers(message, lookupMember) {
+  if (message?.kind !== 'group' || !message.mentionedUserIds?.length) return message;
+  const mentionedUsers = await Promise.all(message.mentionedUserIds.map(async (id) => {
+    if (String(id) === String(message.selfId ?? '')) return { id: String(id), name: '小鲸鱼', isSelf: true };
+    if (String(id).toLowerCase() === 'all') return { id: 'all', name: '全体成员', isSelf: false };
+    try {
+      const member = await lookupMember(String(message.targetId), String(id));
+      const name = String(member?.card || member?.nickname || '').trim();
+      return { id: String(id), name, isSelf: false };
+    } catch {
+      return { id: String(id), name: '', isSelf: false };
+    }
+  }));
+  return { ...message, mentionedUsers };
+}
+
 export function normalizeOneBotMessage(event) {
   if (event?.post_type !== 'message') return null;
   const kind = event.message_type;
@@ -29,19 +63,16 @@ export function normalizeOneBotMessage(event) {
   if (targetId === undefined || targetId === null) return null;
   const selfId = event.self_id === undefined ? null : String(event.self_id);
   const senderId = String(event.user_id ?? event.sender?.user_id ?? '');
-  const mentionedSelf = Array.isArray(event.message) && selfId
-    ? event.message.some((segment) => segment?.type === 'at' && String(segment?.data?.qq ?? '') === selfId)
-    : false;
-  const mentionedUserIds = Array.isArray(event.message)
-    ? [...new Set(event.message
-      .filter((segment) => segment?.type === 'at' && segment?.data?.qq !== undefined)
-      .map((segment) => String(segment.data.qq)))]
-    : [];
+  const mentionedUserIds = extractMentionedUserIds(event);
+  const mentionedSelf = Boolean(selfId && mentionedUserIds.includes(selfId));
   const replySegment = Array.isArray(event.message)
     ? event.message.find((segment) => segment?.type === 'reply')
     : null;
   const content = extractText(event);
-  if (!content && !mentionedSelf) return null;
+  if (!content && !mentionedUserIds.length) return null;
+  const mentionOnlyContent = mentionedSelf && mentionedUserIds.length === 1
+    ? '（只@了你，没有附带文字）'
+    : '（只@了群友，没有附带文字）';
   return {
     id: String(event.message_id ?? randomUUID()),
     kind,
@@ -50,9 +81,10 @@ export function normalizeOneBotMessage(event) {
     senderId,
     senderName: String(event.sender?.card || event.sender?.nickname || '').trim(),
     selfId,
-    content: content || '（只@了你，没有附带文字）',
+    content: content || mentionOnlyContent,
     mentionedSelf,
     mentionedUserIds,
+    mentionedUsers: mentionedUserIds.map((id) => ({ id, name: '', isSelf: id === selfId })),
     replyMessageId: replySegment?.data?.id === undefined ? null : String(replySegment.data.id),
     timestamp: Number(event.time ? event.time * 1000 : Date.now()),
     raw: event
@@ -67,6 +99,8 @@ export class QQAdapter extends EventEmitter {
   #reconnectTimer = null;
   #reconnectAttempt = 0;
   #pending = new Map();
+  #messageChain = Promise.resolve();
+  #memberCache = new Map();
 
   constructor(config, { logger = console } = {}) {
     super();
@@ -156,10 +190,33 @@ export class QQAdapter extends EventEmitter {
         return;
       }
       const message = normalizeOneBotMessage(payload);
-      if (message) this.emit('message', message);
+      if (message) {
+        this.#messageChain = this.#messageChain
+          .then(async () => {
+            const enriched = await resolveMentionedUsers(
+              message,
+              (groupId, userId) => this.#lookupGroupMember(groupId, userId)
+            );
+            this.emit('message', enriched);
+          })
+          .catch((error) => this.#logger.warn?.('[qq] 解析群成员提及失败', error.message ?? error));
+      }
     } catch (error) {
       this.#logger.warn?.('[qq] 忽略无法解析的 OneBot 数据', error.message ?? error);
     }
+  }
+
+  async #lookupGroupMember(groupId, userId) {
+    const key = `${groupId}:${userId}`;
+    const cached = this.#memberCache.get(key);
+    if (cached && cached.expiresAt > Date.now()) return cached.member;
+    const member = await this.callAction('get_group_member_info', {
+      group_id: Number(groupId),
+      user_id: Number(userId),
+      no_cache: false
+    }, 5_000);
+    this.#memberCache.set(key, { member, expiresAt: Date.now() + 30 * 60_000 });
+    return member;
   }
 
   #scheduleReconnect() {

@@ -12,6 +12,12 @@ const TIME_AWARE_RULES = `## 时间感知
 - 例如上午讨论“中午吃什么”，用户晚上回来继续提到午饭，应问“中午最后吃了什么/好不好吃”，而不是继续推荐尚未发生的午饭。
 - 如果用户明确继续一个仍然有效的话题，可以自然接着聊。不要机械复述时间戳，也不要向用户解释这套时间规则。`;
 
+const CONTEXT_RELEVANCE_RULES = `## 历史上下文使用规则
+- 历史消息只用于理解眼前这句话，不是待办清单、提醒列表或每轮都要续写的台词。
+- 一项约定、计划或时间点在双方确认后，就视为已经说完。除非最新一轮明确重新提起它，或最新消息正在询问它的结果，否则不要主动复述、催促、确认，也不要把它作为无关回复的结尾或额外气泡。
+- 回复必须紧扣最新一轮正在谈的对象和话题。需要发多条气泡时，每条都应属于同一个当前回应，不要夹带已经结束的旧话题。
+- 历史里反复出现的词不代表现在还该继续说；发现自己刚说过相同意思时，优先不再重复。`;
+
 const NATURAL_ACTION_RULES = `你正在进行 QQ 群聊中的一次自主观察回合。此任务不是直接生成聊天文本，而是决定内部动作。收到消息只代表你有机会查看，不代表必须回复。你必须只输出一个合法 JSON 对象，不要输出 Markdown、解释、[SILENT] 或其他文字：
 {"action":"send|wait|read|stay","messages":[],"topic":"","focusUserIds":[]}
 - send：现在确实适合开口。messages 是要发送的 1-3 条短消息，每个数组元素是一条完整 QQ 气泡。
@@ -38,6 +44,25 @@ export function splitReply(content, { maxReplyChars, maxReplyParts }) {
   const lines = cleaned.split(/\r?\n+/).map((line) => line.trim()).filter(Boolean);
   const source = lines.length ? lines : [cleaned];
   return source.slice(0, maxReplyParts).map((line) => line.slice(0, maxReplyChars));
+}
+
+function mentionLabel(mention, selfId) {
+  const id = String(mention?.id ?? '');
+  if (mention?.isSelf || (selfId && id === String(selfId))) return `@你（QQ ${id}）`;
+  if (id.toLowerCase() === 'all') return '@全体成员';
+  const name = String(mention?.name ?? '').trim();
+  return name ? `@${name}（QQ ${id}）` : `@QQ ${id}`;
+}
+
+export function formatIncomingForContext(message) {
+  const known = new Map((message.mentionedUsers ?? []).map((item) => [String(item.id), item]));
+  const mentions = (message.mentionedUserIds ?? []).map((id) => {
+    const key = String(id);
+    return mentionLabel(known.get(key) ?? { id: key }, message.selfId);
+  });
+  const prefix = message.senderName ? `${message.senderName}：` : '';
+  const mentionContext = mentions.length ? `【本条消息的 @ 对象：${mentions.join('、')}】\n` : '';
+  return `${mentionContext}${prefix}${message.content}`;
 }
 
 export class ChatController {
@@ -127,7 +152,7 @@ export class ChatController {
     if (!message.deferredStored) {
       await this.#store.append(message.conversationId, {
         role: 'user',
-        content: message.senderName ? `${message.senderName}：${message.content}` : message.content,
+        content: formatIncomingForContext(message),
         timestamp: message.timestamp
       });
     }
@@ -153,10 +178,15 @@ export class ChatController {
     const history = buildTimedHistory(this.#store.get(message.conversationId));
     const naturalMode = message.kind === 'group' && this.#config.groupReplyMode === 'natural';
     const mentionedOthers = (message.mentionedUserIds ?? []).filter((id) => String(id) !== String(message.selfId ?? ''));
+    const mentionedById = new Map((message.mentionedUsers ?? []).map((item) => [String(item.id), item]));
+    const mentionedOtherLabels = mentionedOthers.map((id) => mentionLabel(
+      mentionedById.get(String(id)) ?? { id: String(id) },
+      message.selfId
+    ));
     const addressingHint = message.mentionedSelf
       ? '本轮明确 @ 了你'
       : mentionedOthers.length
-        ? `本轮明确 @ 了其他群友（${mentionedOthers.join(', ')}），不是在 @ 你`
+        ? `本轮明确 @ 了其他群友（${mentionedOtherLabels.join('、')}），不是在 @ 你`
         : message.replyMessageId
           ? participationReason.includes('引用回复了你')
             ? '本轮引用回复的是你之前发送的消息'
@@ -168,8 +198,8 @@ export class ChatController {
         ? `本轮进入回复候选的原因：${participationReason}。这只是候选，不代表必须说话；仍应根据群聊语境决定回复或 [SILENT]。`
       : '私聊通常正常回应；只有自然收尾、没有继续交流意图时才使用 [SILENT]。';
     const system = naturalMode
-      ? `${this.#persona}\n\n## 本次运行的最高优先级规则\n${TIME_AWARE_RULES}\n${decisionHint}\n${currentTimeContext()}\n会话类型：QQ 群聊\n无论角色卡中怎样描述回复格式，本轮都只能返回上述 JSON 动作对象。`
-      : `${this.#persona}\n\n## 本次运行规则\n${RUNTIME_RULES}\n${TIME_AWARE_RULES}\n${currentTimeContext()}\n会话类型：${message.kind === 'private' ? 'QQ 私聊' : 'QQ 群聊'}\n${decisionHint}`;
+      ? `${this.#persona}\n\n## 本次运行的最高优先级规则\n${TIME_AWARE_RULES}\n${CONTEXT_RELEVANCE_RULES}\n${decisionHint}\n${currentTimeContext()}\n会话类型：QQ 群聊\n无论角色卡中怎样描述回复格式，本轮都只能返回上述 JSON 动作对象。`
+      : `${this.#persona}\n\n## 本次运行规则\n${RUNTIME_RULES}\n${TIME_AWARE_RULES}\n${CONTEXT_RELEVANCE_RULES}\n${currentTimeContext()}\n会话类型：${message.kind === 'private' ? 'QQ 私聊' : 'QQ 群聊'}\n${decisionHint}`;
     const result = await this.#deepseek.chat(
       [{ role: 'system', content: system }, ...history],
       naturalMode ? { responseFormat: 'json_object' } : undefined

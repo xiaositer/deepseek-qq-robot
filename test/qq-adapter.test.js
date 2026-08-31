@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { extractText, normalizeOneBotMessage } from '../src/qq-adapter.js';
+import {
+  extractMentionedUserIds,
+  extractText,
+  normalizeOneBotMessage,
+  resolveMentionedUsers
+} from '../src/qq-adapter.js';
 
 test('extracts only text segments', () => {
   const text = extractText({ message: [
@@ -13,6 +18,10 @@ test('extracts only text segments', () => {
 
 test('removes non-text CQ codes from string messages', () => {
   assert.equal(extractText({ message: '[CQ:at,qq=99] 你好 [CQ:image,file=x]' }), '你好');
+});
+
+test('extracts mentioned QQ ids from CQ-code string messages', () => {
+  assert.deepEqual(extractMentionedUserIds({ message: '[CQ:at,qq=99] [CQ:at,qq=88]你好' }), ['99', '88']);
 });
 
 test('normalizes a private OneBot event', () => {
@@ -76,6 +85,34 @@ test('still ignores a truly empty message without a self mention', () => {
     self_id: 3,
     message: []
   }), null);
+});
+
+test('keeps a mention-only message aimed at another group member', () => {
+  const message = normalizeOneBotMessage({
+    post_type: 'message', message_type: 'group', message_id: 100,
+    group_id: 100950944, user_id: 1516453033, self_id: 2405910558,
+    message: [{ type: 'at', data: { qq: '1667973966' } }]
+  });
+
+  assert.equal(message.mentionedSelf, false);
+  assert.equal(message.content, '（只@了群友，没有附带文字）');
+  assert.deepEqual(message.mentionedUserIds, ['1667973966']);
+});
+
+test('resolves mentioned QQ ids to group cards while preserving ids', async () => {
+  const resolved = await resolveMentionedUsers({
+    kind: 'group', targetId: '100950944', selfId: '2405910558',
+    mentionedUserIds: ['1667973966', '2405910558']
+  }, async (groupId, userId) => {
+    assert.equal(groupId, '100950944');
+    assert.equal(userId, '1667973966');
+    return { card: 'happy', nickname: 'fallback' };
+  });
+
+  assert.deepEqual(resolved.mentionedUsers, [
+    { id: '1667973966', name: 'happy', isSelf: false },
+    { id: '2405910558', name: '小鲸鱼', isSelf: true }
+  ]);
 });
 
 test('captures mentions of other group members for addressing context', () => {

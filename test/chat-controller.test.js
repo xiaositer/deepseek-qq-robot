@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { ChatController, splitReply } from '../src/chat-controller.js';
+import { ChatController, formatIncomingForContext, splitReply } from '../src/chat-controller.js';
 import { RecentContextStore } from '../src/recent-context-store.js';
 import { SafetyGuard } from '../src/safety-guard.js';
 import { NaturalConversationEngine } from '../src/natural-conversation-engine.js';
@@ -11,6 +11,17 @@ import { NaturalConversationEngine } from '../src/natural-conversation-engine.js
 test('splits a reply into bounded QQ messages', () => {
   assert.deepEqual(splitReply('一\n\n二\n三\n四', { maxReplyChars: 10, maxReplyParts: 3 }), ['一', '二', '三']);
   assert.deepEqual(splitReply('123456', { maxReplyChars: 4, maxReplyParts: 3 }), ['1234']);
+});
+
+test('formats resolved @ targets as explicit model context', () => {
+  assert.equal(formatIncomingForContext({
+    senderName: '测试者',
+    senderId: '1',
+    selfId: '99',
+    content: '（只@了群友，没有附带文字）',
+    mentionedUserIds: ['1667973966'],
+    mentionedUsers: [{ id: '1667973966', name: 'happy', isSelf: false }]
+  }), '【本条消息的 @ 对象：@happy（QQ 1667973966）】\n测试者：（只@了群友，没有附带文字）');
 });
 
 test('runs the minimal private chat flow and saves context', async () => {
@@ -163,6 +174,42 @@ test('semantically reviews an ordinary unmentioned group turn when review interv
   assert.match(systemPrompt, /新的群聊话轮/);
   assert.match(systemPrompt, /不是“只有被 @ 才工作”的机器人/);
   assert.match(systemPrompt, /没有明确 @ 或引用对象/);
+  assert.match(systemPrompt, /约定、计划或时间点在双方确认后/);
+});
+
+test('passes another member mention name and id to model history and addressing rules', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'qq-chat-'));
+  const store = new RecentContextStore({ filePath: path.join(directory, 'context.json'), maxMessages: 10 });
+  await store.init();
+  let modelMessages;
+  const controller = new ChatController({
+    qq: { sendText: async () => {} },
+    deepseek: { chat: async (messages) => {
+      modelMessages = messages;
+      return { content: '{"action":"read","messages":[],"topic":"","focusUserIds":[]}' };
+    } },
+    persona: 'x', store,
+    safety: new SafetyGuard({ allow: { private: [], groups: ['100950944'] }, perMinuteLimit: 5, globalPerMinuteLimit: 5 }),
+    naturalConversation: {
+      observe: () => ({ review: true, reason: '新的群聊话轮' }),
+      snapshot: () => ({ phase: 'sleeping' }),
+      applyDecision() {}
+    },
+    config: { groupReplyMode: 'natural', maxReplyChars: 100, maxReplyParts: 3, sendGapMs: 1 },
+    logger: { info() {}, warn() {}, error() {} }
+  });
+
+  await controller.handle({
+    id: 'at-other', kind: 'group', targetId: '100950944', conversationId: 'group:100950944',
+    senderId: '1516453033', senderName: '测试者', selfId: '2405910558',
+    content: '（只@了群友，没有附带文字）', mentionedSelf: false,
+    mentionedUserIds: ['1667973966'],
+    mentionedUsers: [{ id: '1667973966', name: 'happy', isSelf: false }]
+  });
+
+  assert.match(modelMessages[0].content, /@happy（QQ 1667973966）/);
+  assert.match(modelMessages.at(-1).content, /本条消息的 @ 对象：@happy（QQ 1667973966）/);
+  assert.match(modelMessages.at(-1).content, /测试者：/);
 });
 
 test('executes a structured natural send action', async () => {
