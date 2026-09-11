@@ -113,11 +113,6 @@ export class NaturalConversationEngine {
         state.topic = '';
         state.focusTurnsRemaining = 0;
       }
-      return {
-        review: false,
-        reason: '本条消息明确回复或 @ 了其他群友，程序直接旁听',
-        state: this.snapshot(message.conversationId)
-      };
     }
     let reason = directReason;
     if (!reason && this.#reviewOpenQuestions && OPEN_QUESTION_PATTERN.test(message.content)) reason = '群里出现开放问题，值得查看但不代表必须回复';
@@ -175,6 +170,9 @@ export class NaturalConversationEngine {
 
   #directReason(message) {
     if (message.mentionedSelf) return '对方明确 @ 了你';
+    if ((message.mentionedUserIds ?? []).some((id) => String(id).toLowerCase() === 'all')) {
+      return '对方 @ 了全体成员，也包括你';
+    }
     if (message.replyTarget?.isSelf) return '对方引用回复了你发过的消息';
     if (message.replyMessageId && this.#botMessageIds.get(message.conversationId)?.has(String(message.replyMessageId))) {
       return '对方引用回复了你发过的消息';
@@ -195,7 +193,7 @@ export class NaturalConversationEngine {
 
   #isAddressedElsewhere(message) {
     const mentionsOther = (message.mentionedUserIds ?? [])
-      .some((id) => String(id) !== String(message.selfId ?? ''));
+      .some((id) => String(id).toLowerCase() !== 'all' && String(id) !== String(message.selfId ?? ''));
     if (mentionsOther && !message.mentionedSelf) return true;
     if (message.replyTarget) return !message.replyTarget.isSelf;
     if (!message.replyMessageId) return false;

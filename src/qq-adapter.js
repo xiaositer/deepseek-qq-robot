@@ -55,6 +55,24 @@ export async function resolveMentionedUsers(message, lookupMember) {
   return { ...message, mentionedUsers };
 }
 
+export function extractQuotedText(replied) {
+  if (Array.isArray(replied?.message)) {
+    const parts = [];
+    for (const segment of replied.message) {
+      if (segment?.type === 'text') parts.push(String(segment?.data?.text ?? ''));
+      else if (segment?.type === 'at') {
+        const id = String(segment?.data?.qq ?? '').trim();
+        const name = String(segment?.data?.name ?? '').trim();
+        if (id.toLowerCase() === 'all') parts.push('@全体成员');
+        else if (name) parts.push(`@${name}`);
+        else if (id) parts.push(`@${id}`);
+      }
+    }
+    return parts.join('').trim().slice(0, 120);
+  }
+  return extractText(replied).slice(0, 120);
+}
+
 export async function resolveReplyTarget(message, lookupMessage, lookupMember) {
   if (message?.kind !== 'group' || !message.replyMessageId) return message;
   try {
@@ -70,13 +88,17 @@ export async function resolveReplyTarget(message, lookupMessage, lookupMember) {
         // The sender id is still enough to route the reply safely.
       }
     }
+    const isSelf = senderId === String(message.selfId ?? '');
+    const content = extractQuotedText(replied);
     return {
       ...message,
       replyTarget: {
         messageId: String(message.replyMessageId),
         senderId,
-        name: senderId === String(message.selfId ?? '') ? '小鲸鱼' : name,
-        isSelf: senderId === String(message.selfId ?? '')
+        name: isSelf ? '小鲸鱼' : name,
+        isSelf,
+        content,
+        contentUnavailable: !content
       }
     };
   } catch {

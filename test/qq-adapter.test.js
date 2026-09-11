@@ -146,10 +146,39 @@ test('resolves the sender of a replied message across process restarts', async (
     kind: 'group', targetId: '300', selfId: '200', replyMessageId: '88'
   }, async (messageId) => {
     assert.equal(messageId, '88');
-    return { sender: { user_id: 100, nickname: '群友甲' } };
+    return { sender: { user_id: 100, nickname: '群友甲' }, message: [{ type: 'text', data: { text: '今天吃什么' } }] };
   }, async () => { throw new Error('not needed'); });
 
   assert.deepEqual(resolved.replyTarget, {
-    messageId: '88', senderId: '100', name: '群友甲', isSelf: false
+    messageId: '88', senderId: '100', name: '群友甲', isSelf: false,
+    content: '今天吃什么', contentUnavailable: false
   });
+});
+
+test('extracts quoted content with mentions rendered as text and truncates long text', async () => {
+  const longText = '长'.repeat(200);
+  const resolved = await resolveReplyTarget({
+    kind: 'group', targetId: '300', selfId: '200', replyMessageId: '77'
+  }, async () => ({
+    sender: { user_id: 100, nickname: '群友甲' },
+    message: [
+      { type: 'at', data: { qq: '200', name: '小鲸鱼' } },
+      { type: 'text', data: { text: ` 你为啥${longText}` } }
+    ]
+  }), async () => { throw new Error('not needed'); });
+
+  assert.equal(resolved.replyTarget.content, `@小鲸鱼 你为啥${'长'.repeat(113)}`.slice(0, 120));
+  assert.equal(resolved.replyTarget.content.length, 120);
+});
+
+test('marks quoted content unavailable when the replied message has no text', async () => {
+  const resolved = await resolveReplyTarget({
+    kind: 'group', targetId: '300', selfId: '200', replyMessageId: '66'
+  }, async () => ({
+    sender: { user_id: 100, nickname: '群友甲' },
+    message: [{ type: 'image', data: { file: 'x' } }]
+  }), async () => { throw new Error('not needed'); });
+
+  assert.equal(resolved.replyTarget.content, '');
+  assert.equal(resolved.replyTarget.contentUnavailable, true);
 });

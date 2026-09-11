@@ -66,7 +66,7 @@ test('allows one unaddressed follow-up after replying, then returns to sampling'
   assert.equal(engine.observe(message({ senderId: '11', replyMessageId: '88' })).review, true);
 });
 
-test('hard-skips a focused speaker when they explicitly reply to someone else', () => {
+test('a focused speaker replying to someone else ends focus but still enters semantic review', () => {
   const engine = new NaturalConversationEngine({ reviewEveryMessages: 1 });
   const current = message({ mentionedSelf: true });
   engine.observe(current);
@@ -77,9 +77,9 @@ test('hard-skips a focused speaker when they explicitly reply to someone else', 
     replyMessageId: '77',
     replyTarget: { messageId: '77', senderId: '20', name: '群友乙', isSelf: false }
   }));
-  assert.equal(observation.review, false);
-  assert.match(observation.reason, /其他群友/);
+  assert.equal(observation.review, true);
   assert.equal(engine.snapshot('group:1').phase, 'sleeping');
+  assert.deepEqual(engine.snapshot('group:1').focusUserIds, []);
 });
 
 test('ends implicit focus when another group member speaks in between', () => {
@@ -93,17 +93,28 @@ test('ends implicit focus when another group member speaks in between', () => {
   assert.equal(engine.snapshot('group:1').phase, 'sleeping');
 });
 
-test('hard-skips messages that @ another member but still handles resolved replies to self', () => {
-  const engine = new NaturalConversationEngine({ reviewEveryMessages: 1 });
+test('messages that @ another member still enter review by accumulation, and @ all counts as addressing everyone', () => {
+  const engine = new NaturalConversationEngine({ reviewEveryMessages: 2, reviewOpenQuestions: false });
   const atOther = engine.observe(message({
     mentionedUserIds: ['20'], selfId: '99', content: '你觉得呢'
   }));
   assert.equal(atOther.review, false);
 
-  const replySelf = engine.observe(message({
-    replyMessageId: 'old-bot-message',
-    replyTarget: { messageId: 'old-bot-message', senderId: '99', name: '小鲸鱼', isSelf: true }
+  const atOtherAgain = engine.observe(message({
+    mentionedUserIds: ['20'], selfId: '99', content: '我也是这么想的'
   }));
+  assert.equal(atOtherAgain.review, true);
+
+  const atAll = new NaturalConversationEngine({ reviewEveryMessages: 99, reviewOpenQuestions: false })
+    .observe(message({ mentionedUserIds: ['all'], selfId: '99', content: '今晚有人开黑吗' }));
+  assert.equal(atAll.review, true);
+  assert.match(atAll.reason, /全体成员/);
+
+  const replySelf = new NaturalConversationEngine({ reviewEveryMessages: 99 })
+    .observe(message({
+      replyMessageId: 'old-bot-message',
+      replyTarget: { messageId: 'old-bot-message', senderId: '99', name: '小鲸鱼', isSelf: true }
+    }));
   assert.equal(replySelf.review, true);
   assert.match(replySelf.reason, /引用回复了你/);
 });

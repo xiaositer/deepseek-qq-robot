@@ -24,12 +24,20 @@ test('formats resolved @ targets as explicit model context', () => {
   }), '【本条消息的 @ 对象：@happy（QQ 1667973966）】\n测试者：（只@了群友，没有附带文字）');
 });
 
-test('formats the resolved reply target as explicit model context', () => {
+test('formats the resolved reply target with quoted content as explicit model context', () => {
   assert.equal(formatIncomingForContext({
     senderName: 'ZOE', selfId: '99', content: '我想的是这样的',
     mentionedUserIds: [],
-    replyTarget: { messageId: '77', senderId: '10', name: '小明', isSelf: false }
-  }), '【本条消息回复的是：小明（QQ 10） 的消息】\nZOE：我想的是这样的');
+    replyTarget: { messageId: '77', senderId: '10', name: '小明', isSelf: false, content: '明天几点出发', contentUnavailable: false }
+  }), '【本条消息回复的是：小明（QQ 10） 的消息，内容是：“明天几点出发”】\nZOE：我想的是这样的');
+});
+
+test('marks quoted content unavailable when the replied message has no text', () => {
+  assert.equal(formatIncomingForContext({
+    senderName: 'ZOE', selfId: '99', content: '哈哈哈',
+    mentionedUserIds: [],
+    replyTarget: { messageId: '77', senderId: '10', name: '小明', isSelf: false, content: '', contentUnavailable: true }
+  }), '【本条消息回复的是：小明（QQ 10） 的消息，内容无法获取（可能是图片或已撤回）】\nZOE：哈哈哈');
 });
 
 test('runs the minimal private chat flow and saves context', async () => {
